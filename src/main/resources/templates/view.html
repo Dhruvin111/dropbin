@@ -147,9 +147,24 @@
         </div>
 
         <div class="footer-hint">
-            <span id="lastSavedTime">Loaded</span> &nbsp;•&nbsp;
-            <span th:if="${isReadOnly}">🔒 Read-only view • Real-time live incoming sync enabled • 5-min inactivity timer</span>
-            <span th:unless="${isReadOnly}">Auto-saves 1s after typing • 5-min timer resets on edit & upload • <kbd style="background:var(--surface-elev);padding:0.1rem 0.3rem;border-radius:3px;">Tab</kbd> to indent</span>
+            <span class="footer-time" id="lastSavedTime">Loaded</span>
+            <span class="footer-sep">•</span>
+            <span class="footer-info-item" th:if="${isReadOnly}">
+                <span>🔒 Read-only view</span>
+                <span class="footer-sep">•</span>
+                <span>Live sync</span>
+                <span class="footer-sep">•</span>
+                <span>5-min timer</span>
+            </span>
+            <span class="footer-info-item" th:unless="${isReadOnly}">
+                <span>Auto-saves 1s after typing</span>
+                <span class="footer-sep">•</span>
+                <span>5-min timer resets on edit &amp; upload</span>
+                <span class="desktop-only-hint">
+                    <span class="footer-sep">•</span>
+                    <kbd style="background:var(--surface-elev);padding:0.1rem 0.3rem;border-radius:3px;">Tab</kbd> to indent
+                </span>
+            </span>
         </div>
     </div>
 
