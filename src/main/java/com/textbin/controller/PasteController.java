@@ -172,6 +172,18 @@ public class PasteController {
         return "redirect:/dropbin/" + id + "/raw";
     }
 
+    // ─── Direct QR routes forwarding to API ───────────────────────────────────
+
+    @GetMapping(value = "/dropbin/{id:[a-zA-Z0-9_\\-\\.]+}/qr")
+    public String directDropbinQr(@PathVariable String id) {
+        return "forward:/api/dropbin/" + id + "/qr";
+    }
+
+    @GetMapping(value = "/dropbin/readonly/{readOnlyKey:[a-zA-Z0-9_\\-\\.]+}/qr")
+    public String directDropbinReadOnlyQr(@PathVariable String readOnlyKey) {
+        return "forward:/api/dropbin/readonly/" + readOnlyKey + "/qr";
+    }
+
     // ─── Helper to populate common model attributes ───────────────────────────
 
     private void populateModel(Model model, Paste paste, boolean isReadOnly, String readOnlyKey) {

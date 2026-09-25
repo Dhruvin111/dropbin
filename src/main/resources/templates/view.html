@@ -85,6 +85,9 @@
             <span>🔒 Read-Only Link</span>
             <button class="net-copy-btn" title="Copy Read-Only Link" style="color:var(--amber-text);">📋</button>
         </a>
+        <a href="javascript:void(0)" class="net-pill" id="btnQuickQrPill" title="Open QR Code for instant phone scan" style="border-color:#bae6fd; background:#e0f2fe; color:#0369a1;">
+            <span>📱 Scan QR</span>
+        </a>
     </div>
     <div class="net-label" style="font-size: 0.75rem; color: var(--text-dim);">
         💡 Access from any device on LAN • Share collaborative edit link or read-only view link
@@ -252,28 +255,63 @@
 <div class="share-modal" id="shareModal">
     <div class="share-card">
         <div class="share-header">
-            <h3>🌐 Network & Share Links</h3>
+            <h3>🌐 Network & Share</h3>
             <button class="share-close-btn" id="btnCloseShare">&times;</button>
         </div>
-        <p style="font-size:0.85rem; color:var(--text-muted);">
-            Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.
-        </p>
 
-        <!-- Collaborative Edit Link (LAN) -->
-        <div class="share-link-row" th:unless="${isReadOnly}">
-            <label>✏️ Collaborative Edit Link (Full access):</label>
-            <div class="share-link-input-group">
-                <input type="text" readonly id="modalLanWordLink" class="share-link-input"/>
-                <button class="share-copy-btn" id="btnCopyLanWord">Copy</button>
+        <!-- Mode Tabs -->
+        <div class="share-tabs">
+            <button type="button" class="share-tab-btn active" id="tabBtnLinks">🔗 Share Links</button>
+            <button type="button" class="share-tab-btn" id="tabBtnQr">📱 QR Codes</button>
+        </div>
+
+        <!-- Tab 1: Share Links -->
+        <div id="paneLinks" class="share-tab-pane">
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
+                Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.
+            </p>
+
+            <!-- Collaborative Edit Link (LAN) -->
+            <div class="share-link-row" th:unless="${isReadOnly}">
+                <label>✏️ Collaborative Edit Link (Full access):</label>
+                <div class="share-link-input-group">
+                    <input type="text" readonly id="modalLanWordLink" class="share-link-input"/>
+                    <button type="button" class="share-copy-btn" id="btnCopyLanWord">Copy</button>
+                    <button type="button" class="share-qr-btn" id="btnGoToQrEdit" title="Show QR Code">📱 QR</button>
+                </div>
+            </div>
+
+            <!-- Read-Only Link (LAN) -->
+            <div class="share-link-row" th:style="${isReadOnly} ? '' : 'margin-top:0.85rem;'">
+                <label>🔒 Read-Only Link (View & live updates only):</label>
+                <div class="share-link-input-group">
+                    <input type="text" readonly id="modalLanReadOnlyLink" class="share-link-input"/>
+                    <button type="button" class="share-copy-btn" id="btnCopyLanReadOnly">Copy</button>
+                    <button type="button" class="share-qr-btn" id="btnGoToQrReadOnly" title="Show QR Code">📱 QR</button>
+                </div>
             </div>
         </div>
 
-        <!-- Read-Only Link (LAN) -->
-        <div class="share-link-row">
-            <label>🔒 Read-Only Link (View & live updates only):</label>
-            <div class="share-link-input-group">
-                <input type="text" readonly id="modalLanReadOnlyLink" class="share-link-input"/>
-                <button class="share-copy-btn" id="btnCopyLanReadOnly">Copy</button>
+        <!-- Tab 2: QR Codes -->
+        <div id="paneQr" class="share-tab-pane" style="display:none;">
+            <!-- Selector between Edit QR and Read-Only QR if not in read-only mode -->
+            <div class="qr-mode-selector" id="qrModeSelector" th:unless="${isReadOnly}">
+                <button type="button" class="qr-mode-btn active" id="qrModeBtnEdit">✏️ Collaborative Edit QR</button>
+                <button type="button" class="qr-mode-btn" id="qrModeBtnReadOnly">🔒 Read-Only QR</button>
+            </div>
+
+            <div class="qr-display-box">
+                <div class="qr-image-wrapper">
+                    <img id="qrImageElement" src="" alt="DropBin QR Code" width="200" height="200"/>
+                </div>
+                <div class="qr-meta">
+                    <div class="qr-badge badge-edit" id="qrBadgeLabel">✏️ Collaborative Edit Access</div>
+                    <p class="qr-hint" id="qrHintText">📷 Point phone camera at QR code to open live collaborative editor</p>
+                    <div class="qr-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnCopyQrUrl">📋 Copy URL</button>
+                        <a href="#" class="btn btn-primary btn-sm" id="btnDownloadQr" download="dropbin-qr.png">⬇️ Download QR</a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -461,7 +499,10 @@
     }
 
     if (btnOpenShare && shareModal) {
-        btnOpenShare.addEventListener('click', () => shareModal.classList.add('open'));
+        btnOpenShare.addEventListener('click', () => {
+            shareModal.classList.add('open');
+            switchTab('links');
+        });
     }
     if (btnCloseShare && shareModal) {
         btnCloseShare.addEventListener('click', () => shareModal.classList.remove('open'));
@@ -469,6 +510,103 @@
     if (shareModal) {
         shareModal.addEventListener('click', (e) => {
             if (e.target === shareModal) shareModal.classList.remove('open');
+        });
+    }
+
+    // ─── QR Code & Share Tab Handlers ─────────────────────────────────────────
+    const tabBtnLinks = document.getElementById('tabBtnLinks');
+    const tabBtnQr = document.getElementById('tabBtnQr');
+    const paneLinks = document.getElementById('paneLinks');
+    const paneQr = document.getElementById('paneQr');
+    const qrModeBtnEdit = document.getElementById('qrModeBtnEdit');
+    const qrModeBtnReadOnly = document.getElementById('qrModeBtnReadOnly');
+    const qrImageElement = document.getElementById('qrImageElement');
+    const qrBadgeLabel = document.getElementById('qrBadgeLabel');
+    const qrHintText = document.getElementById('qrHintText');
+    const btnDownloadQr = document.getElementById('btnDownloadQr');
+    const btnCopyQrUrl = document.getElementById('btnCopyQrUrl');
+    const btnGoToQrEdit = document.getElementById('btnGoToQrEdit');
+    const btnGoToQrReadOnly = document.getElementById('btnGoToQrReadOnly');
+    const btnQuickQrPill = document.getElementById('btnQuickQrPill');
+
+    let currentQrMode = isReadOnly ? 'readonly' : 'edit';
+
+    function updateQrDisplay(mode) {
+        currentQrMode = mode;
+        if (qrModeBtnEdit) qrModeBtnEdit.classList.toggle('active', mode === 'edit');
+        if (qrModeBtnReadOnly) qrModeBtnReadOnly.classList.toggle('active', mode === 'readonly');
+
+        if (mode === 'edit') {
+            const editQrUrl = `/api/dropbin/${encodeURIComponent(pasteId)}/qr`;
+            if (qrImageElement) qrImageElement.src = editQrUrl;
+            if (qrBadgeLabel) {
+                qrBadgeLabel.className = 'qr-badge badge-edit';
+                qrBadgeLabel.textContent = '✏️ Collaborative Edit Access';
+            }
+            if (qrHintText) qrHintText.textContent = '📷 Point phone camera at QR code to open live collaborative editor';
+            if (btnDownloadQr) {
+                btnDownloadQr.href = `${editQrUrl}?download=true`;
+                btnDownloadQr.download = `dropbin-${pasteId}-qr.png`;
+            }
+            if (btnCopyQrUrl) {
+                btnCopyQrUrl.onclick = () => copyToClipboard(lanDropbinFull, btnCopyQrUrl);
+            }
+        } else {
+            const token = readOnlyToken;
+            const roQrUrl = `/api/dropbin/readonly/${encodeURIComponent(token)}/qr`;
+            if (qrImageElement) qrImageElement.src = roQrUrl;
+            if (qrBadgeLabel) {
+                qrBadgeLabel.className = 'qr-badge badge-readonly';
+                qrBadgeLabel.textContent = '🔒 Read-Only Access';
+            }
+            if (qrHintText) qrHintText.textContent = '📷 Point phone camera at QR code to view bin in read-only mode';
+            if (btnDownloadQr) {
+                btnDownloadQr.href = `${roQrUrl}?download=true`;
+                btnDownloadQr.download = `dropbin-readonly-${token}-qr.png`;
+            }
+            if (btnCopyQrUrl) {
+                btnCopyQrUrl.onclick = () => copyToClipboard(lanReadOnlyFull, btnCopyQrUrl);
+            }
+        }
+    }
+
+    function switchTab(tab) {
+        if (tab === 'qr') {
+            if (tabBtnLinks) tabBtnLinks.classList.remove('active');
+            if (tabBtnQr) tabBtnQr.classList.add('active');
+            if (paneLinks) paneLinks.style.display = 'none';
+            if (paneQr) paneQr.style.display = 'block';
+            updateQrDisplay(currentQrMode);
+        } else {
+            if (tabBtnLinks) tabBtnLinks.classList.add('active');
+            if (tabBtnQr) tabBtnQr.classList.remove('active');
+            if (paneLinks) paneLinks.style.display = 'block';
+            if (paneQr) paneQr.style.display = 'none';
+        }
+    }
+
+    if (tabBtnLinks) tabBtnLinks.addEventListener('click', () => switchTab('links'));
+    if (tabBtnQr) tabBtnQr.addEventListener('click', () => switchTab('qr'));
+
+    if (qrModeBtnEdit) qrModeBtnEdit.addEventListener('click', () => updateQrDisplay('edit'));
+    if (qrModeBtnReadOnly) qrModeBtnReadOnly.addEventListener('click', () => updateQrDisplay('readonly'));
+
+    if (btnGoToQrEdit) {
+        btnGoToQrEdit.addEventListener('click', () => {
+            currentQrMode = 'edit';
+            switchTab('qr');
+        });
+    }
+    if (btnGoToQrReadOnly) {
+        btnGoToQrReadOnly.addEventListener('click', () => {
+            currentQrMode = 'readonly';
+            switchTab('qr');
+        });
+    }
+    if (btnQuickQrPill && shareModal) {
+        btnQuickQrPill.addEventListener('click', () => {
+            shareModal.classList.add('open');
+            switchTab('qr');
         });
     }
 

@@ -22,6 +22,7 @@
 - 🧹 **Automatic Cleanup Worker**: Background scheduled task runs every 60 seconds (`@Scheduled`) to purge expired pastes and delete uploaded files from disk.
 - 🌐 **Zero-Config LAN Sharing**: Automatically detects host LAN IP address and generates copyable URLs for instant cross-device sharing across phones, laptops, and workstations on the same Wi-Fi.
 - 🔒 **Secure Read-Only Share Links**: Share unguessable, tokenized view-only links (`/dropbin/readonly/ro_<token>`) that lock the editor and disable uploads for viewers while continuing to stream live updates in real time. Deleting `readonly/` or attempting to edit from a read-only token is automatically blocked and forbidden.
+- 📱 **Integrated Dual QR Codes**: Instant camera scanning for both Collaborative Edit and Read-Only links. Features built-in preview, download to PNG, and direct image endpoints (`/dropbin/{id}/qr` & `/dropbin/readonly/{token}/qr`).
 
 ---
 
