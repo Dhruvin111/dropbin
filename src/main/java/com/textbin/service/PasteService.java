@@ -10,6 +10,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class PasteService {
@@ -32,7 +33,7 @@ public class PasteService {
     @Transactional
     public Paste getOrCreate(String rawId) {
         String cleanId = sanitizeId(rawId);
-        return repo.findById(cleanId)
+        Paste paste = repo.findById(cleanId)
                 .filter(p -> !p.isExpired())
                 .orElseGet(() -> {
                     Instant now = Instant.now();
@@ -45,8 +46,43 @@ public class PasteService {
                     newPaste.setVersion(1L);
                     newPaste.setExpiresAt(now.plus(5, ChronoUnit.MINUTES));
                     newPaste.setSyntaxLanguage("plaintext");
+                    newPaste.setReadOnlyKey(generateReadOnlyKey());
                     return repo.save(newPaste);
                 });
+
+        if (paste.getReadOnlyKey() == null || paste.getReadOnlyKey().isBlank()) {
+            paste.setReadOnlyKey(generateReadOnlyKey());
+            paste = repo.save(paste);
+        }
+        return paste;
+    }
+
+    @Transactional
+    public Optional<Paste> findByReadOnlyKey(String rawKey) {
+        if (rawKey == null || rawKey.isBlank()) return Optional.empty();
+        String cleanKey = rawKey.trim();
+        Optional<Paste> opt = repo.findByReadOnlyKey(cleanKey).filter(p -> !p.isExpired());
+        if (opt.isPresent()) {
+            Paste p = opt.get();
+            if (p.getReadOnlyKey() == null || p.getReadOnlyKey().isBlank()) {
+                p.setReadOnlyKey(generateReadOnlyKey());
+                repo.save(p);
+            }
+        }
+        return opt;
+    }
+
+    public boolean isReadOnlyKey(String id) {
+        if (id == null || id.isBlank()) return false;
+        return repo.existsByReadOnlyKey(id.trim());
+    }
+
+    public String generateReadOnlyKey() {
+        String key;
+        do {
+            key = "ro_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        } while (repo.existsByReadOnlyKey(key));
+        return key;
     }
 
     @Transactional(readOnly = true)

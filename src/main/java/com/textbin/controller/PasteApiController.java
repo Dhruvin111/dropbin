@@ -30,10 +30,16 @@ public class PasteApiController {
      * Auto-save / debounce persistence endpoint.
      */
     @PostMapping("/{id:[a-zA-Z0-9_\\-\\.]+}")
-    public ResponseEntity<PasteResponse> savePaste(
+    public ResponseEntity<?> savePaste(
             @PathVariable String id,
             @RequestBody SavePasteRequest request
     ) {
+        // Enforce server-side security: Reject edits if accessed with a read-only key
+        if (pasteService.isReadOnlyKey(id) || id.startsWith("ro_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(java.util.Map.of("error", "This bin is being accessed in read-only mode and cannot be edited."));
+        }
+
         Paste saved = pasteService.saveOrUpdate(
                 id,
                 request.getContent(),
@@ -57,9 +63,12 @@ public class PasteApiController {
     /**
      * Lightweight status check (version, timestamp, length) for polling sync.
      */
-    @GetMapping("/{id:[a-zA-Z0-9_\\-\\.]+}/status")
+    @GetMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}/status", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}/status"})
     public ResponseEntity<PasteStatusDto> getStatus(@PathVariable String id) {
         Optional<Paste> opt = pasteService.findById(id);
+        if (opt.isEmpty()) {
+            opt = pasteService.findByReadOnlyKey(id);
+        }
         if (opt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -71,9 +80,13 @@ public class PasteApiController {
     /**
      * Full details for a paste.
      */
-    @GetMapping("/{id:[a-zA-Z0-9_\\-\\.]+}")
+    @GetMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}"})
     public ResponseEntity<PasteResponse> getPaste(@PathVariable String id) {
-        return pasteService.findById(id)
+        Optional<Paste> opt = pasteService.findById(id);
+        if (opt.isEmpty()) {
+            opt = pasteService.findByReadOnlyKey(id);
+        }
+        return opt
                 .map(p -> ResponseEntity.ok(new PasteResponse(
                         p.getId(),
                         p.getContent(),
@@ -89,8 +102,13 @@ public class PasteApiController {
     /**
      * Server-Sent Events stream for instant real-time push to other devices.
      */
-    @GetMapping(value = "/{id:[a-zA-Z0-9_\\-\\.]+}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = {"/{id:[a-zA-Z0-9_\\-\\.]+}/stream", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}/stream"}, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamUpdates(@PathVariable String id) {
-        return syncService.subscribe(PasteService.sanitizeId(id));
+        String cleanId = PasteService.sanitizeId(id);
+        Optional<Paste> roPaste = pasteService.findByReadOnlyKey(cleanId);
+        if (roPaste.isPresent()) {
+            return syncService.subscribe(roPaste.get().getId());
+        }
+        return syncService.subscribe(cleanId);
     }
 }

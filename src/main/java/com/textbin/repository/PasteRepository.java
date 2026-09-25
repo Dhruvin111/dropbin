@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Repository
 public interface PasteRepository extends JpaRepository<Paste, String> {
@@ -22,4 +23,8 @@ public interface PasteRepository extends JpaRepository<Paste, String> {
     /** Count how many pastes are still alive (for optional stats endpoint). */
     @Query("SELECT COUNT(p) FROM Paste p WHERE p.expiresAt >= :now")
     long countActivePastes(Instant now);
+
+    Optional<Paste> findByReadOnlyKey(String readOnlyKey);
+
+    boolean existsByReadOnlyKey(String readOnlyKey);
 }

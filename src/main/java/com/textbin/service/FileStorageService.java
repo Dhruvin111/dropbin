@@ -125,10 +125,15 @@ public class FileStorageService {
 
     @Transactional(readOnly = true)
     public List<BinFileDto> getFilesForPaste(String rawPasteId) {
+        return getFilesForPaste(rawPasteId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BinFileDto> getFilesForPaste(String rawPasteId, String routePrefix) {
         String pasteId = PasteService.sanitizeId(rawPasteId);
         return fileRepo.findByPasteIdOrderByUploadedAtDesc(pasteId)
                 .stream()
-                .map(this::toDto)
+                .map(f -> toDto(f, routePrefix))
                 .collect(Collectors.toList());
     }
 
@@ -249,11 +254,16 @@ public class FileStorageService {
     }
 
     public BinFileDto toDto(BinFile file) {
-        String downloadUrl = "/dropbin/" + file.getPasteId() + "/files/" + file.getId() + "/download";
-        String viewUrl = "/dropbin/" + file.getPasteId() + "/files/" + file.getId() + "/view";
+        return toDto(file, null);
+    }
+
+    public BinFileDto toDto(BinFile file, String routePrefix) {
+        String base = (routePrefix != null && !routePrefix.isBlank()) ? routePrefix : file.getPasteId();
+        String downloadUrl = "/dropbin/" + base + "/files/" + file.getId() + "/download";
+        String viewUrl = "/dropbin/" + base + "/files/" + file.getId() + "/view";
         return new BinFileDto(
                 file.getId(),
-                file.getPasteId(),
+                base,
                 file.getOriginalFilename(),
                 file.getContentType(),
                 file.getFileSize(),

@@ -39,6 +39,9 @@ public class Paste {
     @Column(name = "syntax_language", length = 50)
     private String syntaxLanguage = "plaintext";
 
+    @Column(name = "read_only_key", length = 64)
+    private String readOnlyKey;
+
     // ─── Constructors ────────────────────────────────────────────────────────
 
     public Paste() {}
@@ -65,6 +68,9 @@ public class Paste {
         if (version == null) version = 1L;
         if (expiresAt == null) expiresAt = createdAt.plus(5, ChronoUnit.MINUTES);
         if (syntaxLanguage == null || syntaxLanguage.isBlank()) syntaxLanguage = "plaintext";
+        if (readOnlyKey == null || readOnlyKey.isBlank()) {
+            readOnlyKey = "ro_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        }
     }
 
     @PreUpdate
@@ -74,6 +80,9 @@ public class Paste {
         }
         if (this.version == null) {
             this.version = 1L;
+        }
+        if (this.readOnlyKey == null || this.readOnlyKey.isBlank()) {
+            this.readOnlyKey = "ro_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 10);
         }
         // Actively updated textbins stay alive for 5 minutes after last edit
         this.expiresAt = this.updatedAt.plus(5, ChronoUnit.MINUTES);
@@ -116,4 +125,7 @@ public class Paste {
 
     public String getSyntaxLanguage() { return syntaxLanguage; }
     public void setSyntaxLanguage(String syntaxLanguage) { this.syntaxLanguage = syntaxLanguage; }
+
+    public String getReadOnlyKey() { return readOnlyKey; }
+    public void setReadOnlyKey(String readOnlyKey) { this.readOnlyKey = readOnlyKey; }
 }

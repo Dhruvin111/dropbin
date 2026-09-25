@@ -450,6 +450,13 @@ body {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
+.pad-title-input:read-only {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    cursor: default;
+    padding-left: 0;
+}
 
 .toolbar-right {
     display: flex;
@@ -523,6 +530,11 @@ body {
 .editor-textarea::placeholder {
     color: var(--text-dim);
     font-style: italic;
+}
+
+.editor-textarea:read-only {
+    background: #fbfcfe;
+    cursor: default;
 }
 
 /* ── Editor Footer Bar ───────────────────────────────────────────────────── */
@@ -764,8 +776,8 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 1.75rem;
-    max-width: 500px;
-    width: 90%;
+    max-width: 540px;
+    width: 92%;
     box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
@@ -815,6 +827,7 @@ body {
 
 .share-link-input {
     flex: 1;
+    min-width: 0;
     background: transparent;
     border: none;
     padding: 0.5rem 0.75rem;
@@ -829,11 +842,15 @@ body {
     border: none;
     border-left: 1px solid var(--border);
     color: var(--text);
-    padding: 0.5rem 0.85rem;
+    padding: 0.5rem 0.95rem;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     transition: var(--transition);
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 76px;
+    text-align: center;
 }
 .share-copy-btn:hover {
     background: var(--primary-light);

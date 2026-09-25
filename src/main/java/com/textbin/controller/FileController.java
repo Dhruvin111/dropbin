@@ -3,6 +3,8 @@ package com.textbin.controller;
 import com.textbin.dto.BinFileDto;
 import com.textbin.model.BinFile;
 import com.textbin.service.FileStorageService;
+import com.textbin.service.PasteService;
+
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -26,9 +28,11 @@ import java.util.Optional;
 public class FileController {
 
     private final FileStorageService fileStorageService;
+    private final PasteService pasteService;
 
-    public FileController(FileStorageService fileStorageService) {
+    public FileController(FileStorageService fileStorageService, com.textbin.service.PasteService pasteService) {
         this.fileStorageService = fileStorageService;
+        this.pasteService = pasteService;
     }
 
     // ─── 1. Upload File (up to 10MB; Image, PDF, Word) ───────────────────────
@@ -40,6 +44,10 @@ public class FileController {
             @PathVariable String pasteId,
             @RequestParam("file") MultipartFile file
     ) {
+        if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Cannot upload files to a read-only bin."));
+        }
         try {
             BinFileDto dto = fileStorageService.storeFile(pasteId, file);
             return ResponseEntity.status(HttpStatus.CREATED).body(dto);
@@ -52,9 +60,18 @@ public class FileController {
     }
 
     // ─── 2. List Files for Pad ────────────────────────────────────────────────
-    @GetMapping({"/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files", "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files"})
+    @GetMapping({
+            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files",
+            "/api/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files",
+            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files"
+    })
     public ResponseEntity<List<BinFileDto>> listFiles(@PathVariable String pasteId) {
-        List<BinFileDto> files = fileStorageService.getFilesForPaste(pasteId);
+        boolean isRo = pasteService.isReadOnlyKey(pasteId);
+        String resolvedId = isRo
+                ? pasteService.findByReadOnlyKey(pasteId).map(com.textbin.model.Paste::getId).orElse(pasteId)
+                : pasteId;
+        String routePrefix = isRo ? ("readonly/" + pasteId) : null;
+        List<BinFileDto> files = fileStorageService.getFilesForPaste(resolvedId, routePrefix);
         return ResponseEntity.ok(files);
     }
 
@@ -67,6 +84,10 @@ public class FileController {
             @PathVariable String pasteId,
             @PathVariable String fileId
     ) {
+        if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Cannot delete files from a read-only bin."));
+        }
         boolean deleted = fileStorageService.deleteFile(pasteId, fileId);
         if (deleted) {
             return ResponseEntity.noContent().build();
@@ -77,7 +98,9 @@ public class FileController {
     // ─── 4. View File Inline (Images, PDF) ────────────────────────────────────
     @GetMapping({
             "/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view",
-            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view"
+            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view",
+            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view",
+            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view"
     })
     public ResponseEntity<Resource> viewFile(
             @PathVariable String pasteId,
@@ -89,7 +112,9 @@ public class FileController {
     // ─── 5. Download File Attachment (Word, PDF, Images) ──────────────────────
     @GetMapping({
             "/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download",
-            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download"
+            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download",
+            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download",
+            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download"
     })
     public ResponseEntity<Resource> downloadFile(
             @PathVariable String pasteId,
@@ -101,7 +126,9 @@ public class FileController {
     // ─── 6. Friendly File URL with original filename ─────────────────────────
     @GetMapping({
             "/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}",
-            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}"
+            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}",
+            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}",
+            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}"
     })
     public ResponseEntity<Resource> getNamedFile(
             @PathVariable String pasteId,
@@ -113,13 +140,16 @@ public class FileController {
     }
 
     private ResponseEntity<Resource> serveFile(String pasteId, String fileId, boolean asAttachment) {
+        String resolvedId = pasteService.findByReadOnlyKey(pasteId)
+                .map(com.textbin.model.Paste::getId)
+                .orElse(pasteId);
         Optional<BinFile> opt = fileStorageService.findById(fileId);
         if (opt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         BinFile bf = opt.get();
-        if (!bf.getPasteId().equalsIgnoreCase(pasteId)) {
+        if (!bf.getPasteId().equalsIgnoreCase(resolvedId)) {
             return ResponseEntity.notFound().build();
         }
 

@@ -21,6 +21,7 @@
 - ⏱️ **5-Minute Inactivity Auto-Expiry**: Resets dynamically on every text edit or file upload. Includes a live countdown timer in the header.
 - 🧹 **Automatic Cleanup Worker**: Background scheduled task runs every 60 seconds (`@Scheduled`) to purge expired pastes and delete uploaded files from disk.
 - 🌐 **Zero-Config LAN Sharing**: Automatically detects host LAN IP address and generates copyable URLs for instant cross-device sharing across phones, laptops, and workstations on the same Wi-Fi.
+- 🔒 **Secure Read-Only Share Links**: Share unguessable, tokenized view-only links (`/dropbin/readonly/ro_<token>`) that lock the editor and disable uploads for viewers while continuing to stream live updates in real time. Deleting `readonly/` or attempting to edit from a read-only token is automatically blocked and forbidden.
 
 ---
 
@@ -109,6 +110,7 @@ Once started, open your browser at:
 | `/dropbin` | `GET` | Landing page to create or open a named pad |
 | `/dropbin/new` | `GET` | Generates a random alphanumeric pad ID and redirects |
 | `/dropbin/{id}` | `GET` | Main live collaborative editor view for pad `{id}` |
+| `/dropbin/{id}/readonly` | `GET` | View-only link: locks editor & uploads while streaming live updates |
 | `/dropbin/{id}/raw` | `GET` | Plain text raw view of bin content |
 | `/{id}` | `GET` | Convenient shortcut redirecting to `/dropbin/{id}` |
 

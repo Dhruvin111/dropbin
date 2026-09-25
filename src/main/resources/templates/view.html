@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title th:text="${paste.id} + ' — DropBin Live'"></title>
+    <title th:text="${(activeId != null ? activeId : paste.id) + ' — DropBin Live'}"></title>
     <link rel="stylesheet" th:href="@{/style.css}" href="/style.css"/>
     <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
 </head>
@@ -27,14 +27,22 @@
     <div class="header-left">
         <a href="/dropbin" class="logo">
             <span>📦 DropBin</span>
-            <span class="logo-badge">Live</span>
+            <span th:if="${isReadOnly}" class="logo-badge" style="background:#d97706; color:#ffffff;">Read-Only</span>
+            <span th:unless="${isReadOnly}" class="logo-badge">Live</span>
         </a>
         <div class="pad-route-badge" title="DropBin Identifier">
-            <span class="prefix">/dropbin/</span><span id="displayPadId" th:text="${paste.id}">pad</span>
+            <span class="prefix">/dropbin/</span><span id="displayPadId" th:text="${activeId != null ? activeId : paste.id}">pad</span>
+            <span th:if="${isReadOnly}" style="font-size:0.75rem; color:#d97706; font-weight:700; margin-left:0.25rem;">[Read-Only]</span>
         </div>
     </div>
 
     <div class="header-right">
+        <!-- Read-only Mode Indicator -->
+        <div th:if="${isReadOnly}" class="peer-badge" style="border-color:#f59e0b; background:#fffbeb; color:#b45309;" title="Viewing in read-only mode. Edits and uploads are disabled.">
+            <span>🔒</span>
+            <span>Read-Only Mode</span>
+        </div>
+
         <!-- Live Peer / Realtime status -->
         <div class="peer-badge" title="Live multi-device sync is active">
             <span class="live-dot"></span>
@@ -50,12 +58,12 @@
         <!-- Save Status Badge -->
         <div class="status-pill saved" id="statusPill">
             <span class="status-dot"></span>
-            <span id="statusText">Saved</span>
+            <span id="statusText" th:text="${isReadOnly} ? 'Read-Only' : 'Saved'">Saved</span>
         </div>
 
         <!-- Share LAN Button -->
         <button class="btn btn-share" id="btnOpenShare">
-            🌐 Share IP Link
+            🌐 Share Links
         </button>
 
         <!-- New Pad Button -->
@@ -67,15 +75,19 @@
 <div class="network-info-bar">
     <div class="network-links">
         <span class="net-label">
-            <span>🌐 Network URL (Any PC on LAN):</span>
+            <span>🌐 Network Links:</span>
         </span>
-        <a href="javascript:void(0)" class="net-pill" id="lanWordPill" title="Click to copy link">
+        <a th:if="${!isReadOnly}" href="javascript:void(0)" class="net-pill" id="lanWordPill" title="Click to copy collaborative link">
             <span id="lanWordUrl">Loading...</span>
-            <button class="net-copy-btn" title="Copy">📋</button>
+            <button class="net-copy-btn" title="Copy Edit Link">📋</button>
+        </a>
+        <a href="javascript:void(0)" class="net-pill" id="lanReadOnlyPill" title="Click to copy read-only link" style="border-color:var(--amber-border); background:var(--amber-light); color:var(--amber-text);">
+            <span>🔒 Read-Only Link</span>
+            <button class="net-copy-btn" title="Copy Read-Only Link" style="color:var(--amber-text);">📋</button>
         </a>
     </div>
     <div class="net-label" style="font-size: 0.75rem; color: var(--text-dim);">
-        💡 Access from any device on your network via: <code style="color:var(--primary);">http://<span th:text="${serverLanIp}"></span>:<span th:text="${serverPort}"></span>/dropbin/<span th:text="${paste.id}"></span></code>
+        💡 Access from any device on LAN • Share collaborative edit link or read-only view link
     </div>
 </div>
 
@@ -85,12 +97,13 @@
         <div class="toolbar-left">
             <input type="text" id="pasteTitle" class="pad-title-input"
                    placeholder="Bin Title (optional)"
-                   th:value="${paste.title != null ? paste.title : paste.id}"
+                   th:value="${paste.title != null ? paste.title : (activeId != null ? activeId : paste.id)}"
+                   th:readonly="${isReadOnly}"
                    maxlength="255"/>
         </div>
 
         <div class="toolbar-right">
-            <button class="btn btn-save" id="btnManualSave" title="Save now (Ctrl+S)">
+            <button th:if="${!isReadOnly}" class="btn btn-save" id="btnManualSave" title="Save now (Ctrl+S)">
                 💾 Save
             </button>
             <button class="btn btn-secondary" id="btnCopyAll" title="Copy entire text to clipboard">
@@ -102,7 +115,7 @@
             <button class="btn btn-secondary" id="btnDownload" title="Download as .txt file">
                 ⬇️ Download
             </button>
-            <button class="btn btn-secondary" id="btnClear" title="Clear bin text">
+            <button th:if="${!isReadOnly}" class="btn btn-secondary" id="btnClear" title="Clear bin text">
                 🗑️ Clear
             </button>
         </div>
@@ -115,8 +128,9 @@
 
         <!-- The Live Editable Textarea -->
         <textarea id="editorTextarea" class="editor-textarea"
-                  placeholder="Paste or write your text here... Changes auto-save in 1 second and sync to all connected devices."
+                  th:placeholder="${isReadOnly} ? 'This bin is in read-only mode. Content updates live when edited by peers.' : 'Paste or write your text here... Changes auto-save in 1 second and sync to all connected devices.'"
                   spellcheck="false"
+                  th:readonly="${isReadOnly}"
                   autofocus th:text="${paste.content}"></textarea>
     </div>
 
@@ -131,7 +145,8 @@
 
         <div class="footer-hint">
             <span id="lastSavedTime">Loaded</span> &nbsp;•&nbsp;
-            <span>Auto-saves 1s after typing • 5-min timer resets on edit & upload • <kbd style="background:var(--surface-elev);padding:0.1rem 0.3rem;border-radius:3px;">Tab</kbd> to indent</span>
+            <span th:if="${isReadOnly}">🔒 Read-only view • Real-time live incoming sync enabled • 5-min inactivity timer</span>
+            <span th:unless="${isReadOnly}">Auto-saves 1s after typing • 5-min timer resets on edit & upload • <kbd style="background:var(--surface-elev);padding:0.1rem 0.3rem;border-radius:3px;">Tab</kbd> to indent</span>
         </div>
     </div>
 
@@ -144,16 +159,21 @@
                       th:text="${attachedFiles != null ? #lists.size(attachedFiles) : 0}">0</span>
                 <span class="file-support-hint">Images, PDFs, Word (.doc, .docx) up to 10MB</span>
             </div>
-            <div>
+            <div th:if="${!isReadOnly}">
                 <button class="btn btn-primary" id="btnTriggerUpload" style="font-size:0.82rem; padding:0.4rem 0.85rem;">
                     + Upload File
                 </button>
                 <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx" multiple style="display:none;"/>
             </div>
+            <div th:if="${isReadOnly}">
+                <span style="font-size:0.8rem; color:var(--text-dim); background:var(--surface-elev); padding:0.3rem 0.6rem; border-radius:var(--radius-sm); border:1px solid var(--border);">
+                    🔒 Uploads disabled in read-only mode
+                </span>
+            </div>
         </div>
 
         <!-- Dropzone -->
-        <div class="file-dropzone" id="fileDropzone">
+        <div th:if="${!isReadOnly}" class="file-dropzone" id="fileDropzone">
             <div class="dropzone-content" id="dropzoneContent">
                 <div class="dropzone-icon">📥</div>
                 <div class="dropzone-text">
@@ -213,7 +233,7 @@
                             ⬇️ Download
                         </a>
                     </div>
-                    <button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">
+                    <button th:if="${!isReadOnly}" type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">
                         🗑️
                     </button>
                 </div>
@@ -236,22 +256,24 @@
             <button class="share-close-btn" id="btnCloseShare">&times;</button>
         </div>
         <p style="font-size:0.85rem; color:var(--text-muted);">
-            Share this DropBin with other PCs on your local Wi-Fi or LAN. Anyone opening this link will see and sync changes in real time.
+            Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.
         </p>
 
-        <div class="share-link-row">
-            <label>Network Link (share with any PC on your network):</label>
+        <!-- Collaborative Edit Link (LAN) -->
+        <div class="share-link-row" th:unless="${isReadOnly}">
+            <label>✏️ Collaborative Edit Link (Full access):</label>
             <div class="share-link-input-group">
                 <input type="text" readonly id="modalLanWordLink" class="share-link-input"/>
                 <button class="share-copy-btn" id="btnCopyLanWord">Copy</button>
             </div>
         </div>
 
+        <!-- Read-Only Link (LAN) -->
         <div class="share-link-row">
-            <label>Localhost Link:</label>
+            <label>🔒 Read-Only Link (View & live updates only):</label>
             <div class="share-link-input-group">
-                <input type="text" readonly id="modalLocalLink" class="share-link-input"/>
-                <button class="share-copy-btn" id="btnCopyLocal">Copy</button>
+                <input type="text" readonly id="modalLanReadOnlyLink" class="share-link-input"/>
+                <button class="share-copy-btn" id="btnCopyLanReadOnly">Copy</button>
             </div>
         </div>
     </div>
@@ -287,11 +309,13 @@
 <!-- Hidden Metadata for JavaScript -->
 <div style="display:none;"
      id="metaData"
-     th:data-id="${paste.id}"
+     th:data-id="${isReadOnly ? readOnlyKey : paste.id}"
+     th:data-readonly-key="${readOnlyKey}"
      th:data-version="${paste.version}"
      th:data-seconds-left="${secondsLeft}"
      th:data-server-ip="${serverLanIp}"
-     th:data-server-port="${serverPort}"></div>
+     th:data-server-port="${serverPort}"
+     th:data-readonly="${isReadOnly != null && isReadOnly}"></div>
 
 <!-- Core Script -->
 <script>
@@ -299,9 +323,11 @@
     // ─── Extract Data ─────────────────────────────────────────────────────────
     const meta = document.getElementById('metaData');
     const pasteId = meta.dataset.id;
+    const readOnlyKey = meta.dataset.readonlyKey || '';
     let currentVersion = parseInt(meta.dataset.version) || 1;
     const serverLanIp = meta.dataset.serverIp || 'localhost';
     const serverPort = meta.dataset.serverPort || '8080';
+    const isReadOnly = meta.dataset.readonly === 'true';
 
     // Unique token for this browser tab session to avoid self-triggering remote banners
     const clientToken = 'tab_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
@@ -336,9 +362,10 @@
     const btnOpenShare = document.getElementById('btnOpenShare');
     const btnCloseShare = document.getElementById('btnCloseShare');
     const modalLanWordLink = document.getElementById('modalLanWordLink');
-    const modalLocalLink = document.getElementById('modalLocalLink');
+    const modalLanReadOnlyLink = document.getElementById('modalLanReadOnlyLink');
     const lanWordUrl = document.getElementById('lanWordUrl');
     const lanWordPill = document.getElementById('lanWordPill');
+    const lanReadOnlyPill = document.getElementById('lanReadOnlyPill');
 
     // File Elements
     const fileDropzone = document.getElementById('fileDropzone');
@@ -399,11 +426,12 @@
     // ─── Setup Network URLs ───────────────────────────────────────────────────
     const hostPort = (serverPort === '80' || serverPort === '') ? '' : `:${serverPort}`;
     const lanDropbinFull = `http://${serverLanIp}${hostPort}/dropbin/${pasteId}`;
-    const localFull = `${window.location.origin}/dropbin/${pasteId}`;
+    const readOnlyToken = readOnlyKey || pasteId;
+    const lanReadOnlyFull = `http://${serverLanIp}${hostPort}/dropbin/readonly/${readOnlyToken}`;
 
-    if (lanWordUrl) lanWordUrl.textContent = lanDropbinFull;
+    if (lanWordUrl) lanWordUrl.textContent = isReadOnly ? lanReadOnlyFull : lanDropbinFull;
     if (modalLanWordLink) modalLanWordLink.value = lanDropbinFull;
-    if (modalLocalLink) modalLocalLink.value = localFull;
+    if (modalLanReadOnlyLink) modalLanReadOnlyLink.value = lanReadOnlyFull;
 
     function copyToClipboard(text, buttonElement) {
         navigator.clipboard.writeText(text).then(() => {
@@ -420,13 +448,16 @@
     if (lanWordPill) {
         lanWordPill.addEventListener('click', () => copyToClipboard(lanDropbinFull, lanWordPill.querySelector('.net-copy-btn')));
     }
+    if (lanReadOnlyPill) {
+        lanReadOnlyPill.addEventListener('click', () => copyToClipboard(lanReadOnlyFull, lanReadOnlyPill.querySelector('.net-copy-btn')));
+    }
     const btnCopyLanWord = document.getElementById('btnCopyLanWord');
     if (btnCopyLanWord) {
         btnCopyLanWord.addEventListener('click', () => copyToClipboard(lanDropbinFull, btnCopyLanWord));
     }
-    const btnCopyLocal = document.getElementById('btnCopyLocal');
-    if (btnCopyLocal) {
-        btnCopyLocal.addEventListener('click', () => copyToClipboard(localFull, btnCopyLocal));
+    const btnCopyLanReadOnly = document.getElementById('btnCopyLanReadOnly');
+    if (btnCopyLanReadOnly) {
+        btnCopyLanReadOnly.addEventListener('click', () => copyToClipboard(lanReadOnlyFull, btnCopyLanReadOnly));
     }
 
     if (btnOpenShare && shareModal) {
@@ -518,6 +549,7 @@
     // ─── Tab Key Indentation ──────────────────────────────────────────────────
     if (textarea) {
         textarea.addEventListener('keydown', (e) => {
+            if (isReadOnly) return;
             if (e.key === 'Tab') {
                 e.preventDefault();
                 const start = textarea.selectionStart;
@@ -540,6 +572,7 @@
     }
 
     function triggerInput() {
+        if (isReadOnly) return;
         isDirty = true;
         lastUserTypingTime = Date.now();
         setStatus('dirty', 'Unsaved changes...');
@@ -553,11 +586,16 @@
         }, DEBOUNCE_DELAY_MS);
     }
 
-    if (textarea) textarea.addEventListener('input', triggerInput);
-    if (titleInput) titleInput.addEventListener('input', triggerInput);
+    if (!isReadOnly) {
+        if (textarea) textarea.addEventListener('input', triggerInput);
+        if (titleInput) titleInput.addEventListener('input', triggerInput);
+    } else {
+        setStatus('saved', 'Read-Only');
+    }
 
     // ─── Persistence (Save to Server) ─────────────────────────────────────────
     async function saveToServer(isManual = false) {
+        if (isReadOnly) return;
         if (debounceTimer) clearTimeout(debounceTimer);
         if (!isDirty && !isManual) return;
         if (!textarea) return;
@@ -606,7 +644,7 @@
     }
 
     window.addEventListener('beforeunload', () => {
-        if (isDirty && textarea) {
+        if (!isReadOnly && isDirty && textarea) {
             const payload = JSON.stringify({
                 content: textarea.value,
                 title: titleInput ? titleInput.value : pasteId,
@@ -803,7 +841,7 @@
                     ${viewBtnHtml}
                     <a href="${file.downloadUrl}" class="file-btn" download title="Download ${file.originalFilename}">⬇️ Download</a>
                 </div>
-                <button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">🗑️</button>
+                ${isReadOnly ? '' : '<button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">🗑️</button>'}
             </div>
         `;
 
@@ -812,6 +850,7 @@
     }
 
     async function deleteFile(fileId) {
+        if (isReadOnly) return;
         if (!confirm('Are you sure you want to delete this file?')) {
             return;
         }
@@ -878,7 +917,7 @@
         currentVersion = version;
         if (versionDisplay) versionDisplay.textContent = 'v' + currentVersion;
         isDirty = false;
-        setStatus('saved', 'Synced');
+        setStatus('saved', isReadOnly ? 'Read-Only' : 'Synced');
         resetExpiryTimer();
         updateStatsAndGutter();
 
@@ -890,13 +929,19 @@
 
         const now = new Date();
         if (lastSavedTime) {
-            lastSavedTime.textContent = 'Synced at ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            lastSavedTime.textContent = (isReadOnly ? 'Synced at ' : 'Saved at ') + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
     }
 
     function handleIncomingTextUpdate(data) {
         if (data.clientToken === clientToken) return;
         if (data.version && data.version <= currentVersion) return;
+
+        if (isReadOnly) {
+            applyRemoteUpdate(data.content, data.title, data.version);
+            showToast(`Synced text updates from peers (v${data.version})`);
+            return;
+        }
 
         const isUserActivelyTyping = isDirty || (Date.now() - lastUserTypingTime < 2500);
 
@@ -918,7 +963,9 @@
 
     // 1. Server-Sent Events (SSE) Stream
     function initSse() {
-        const streamUrl = `/api/dropbin/${encodeURIComponent(pasteId)}/stream`;
+        const streamUrl = (isReadOnly && readOnlyKey)
+            ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}/stream`
+            : `/api/dropbin/${encodeURIComponent(pasteId)}/stream`;
         const eventSource = new EventSource(streamUrl);
 
         eventSource.addEventListener('paste_update', (e) => {
@@ -969,11 +1016,17 @@
     async function checkStatus() {
         if (isSaving) return;
         try {
-            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/status`);
+            const statusUrl = (isReadOnly && readOnlyKey)
+                ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}/status`
+                : `/api/dropbin/${encodeURIComponent(pasteId)}/status`;
+            const resp = await fetch(statusUrl);
             if (resp.ok) {
                 const status = await resp.json();
                 if (status.version && status.version > currentVersion) {
-                    const fullResp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}`);
+                    const fullUrl = (isReadOnly && readOnlyKey)
+                        ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}`
+                        : `/api/dropbin/${encodeURIComponent(pasteId)}`;
+                    const fullResp = await fetch(fullUrl);
                     if (fullResp.ok) {
                         const fullData = await fullResp.json();
                         handleIncomingTextUpdate(fullData);
@@ -986,7 +1039,10 @@
     async function syncFilesList() {
         if (!filesGrid) return;
         try {
-            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/files`);
+            const filesUrl = (isReadOnly && readOnlyKey)
+                ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}/files`
+                : `/api/dropbin/${encodeURIComponent(pasteId)}/files`;
+            const resp = await fetch(filesUrl);
             if (resp.ok) {
                 const fileList = await resp.json();
                 const currentIds = new Set(fileList.map(f => f.id));
