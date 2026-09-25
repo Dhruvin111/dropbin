@@ -14,7 +14,7 @@
 
 - ✍️ **Always-in-Edit-Mode Text Editor**: Zero-click editing with line-number gutter, live character/word/line counters, and Tab indentation support.
 - 💾 **Debounced Auto-Save & Beacon**: Changes automatically persist 1 second after you stop typing, via `Ctrl+S`, or upon navigating away using `navigator.sendBeacon`.
-- 🔄 **Real-Time Multi-Device Sync (SSE)**: Powered by Server-Sent Events (`SseEmitter`). Edits from one PC or phone reflect instantly on all other connected screens without websockets or third-party cloud services.
+- 🔄 **Real-Time Multi-Device Sync (SSE)**: Powered by Server-Sent Events (`SseEmitter`) with a 25-second keep-alive heartbeat (`: ping`). Edits and file uploads from one PC or phone reflect instantly on all other connected screens without websockets or third-party cloud services.
 - 🛡️ **Smart Conflict Protection**: If another device pushes updates while you are actively typing locally, DropBin avoids clobbering your draft and presents a non-intrusive prompt (*Load* vs. *Dismiss*).
 - 📎 **10MB Multi-Format File Sharing**: Drag-and-drop or browse files (Images: PNG, JPG, WEBP, SVG; PDFs; Word `.doc` / `.docx`).
 - 👁️ **Inline Lightbox Preview & Direct Download**: Built-in modal image preview and dedicated preview/download routes for documents.

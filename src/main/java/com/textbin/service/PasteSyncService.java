@@ -1,6 +1,7 @@
 package com.textbin.service;
 
 import com.textbin.dto.PasteResponse;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -53,6 +54,33 @@ public class PasteSyncService {
             }
         }
         list.removeAll(deadEmitters);
+    }
+
+    /**
+     * Periodic 25-second heartbeat ping (: ping) to keep connections active across
+     * routers, proxies, and firewalls, and promptly clean up dead/closed sockets.
+     */
+    @Scheduled(fixedRate = 25000)
+    public void sendHeartbeat() {
+        if (emitters.isEmpty()) return;
+
+        emitters.forEach((pasteId, list) -> {
+            List<SseEmitter> deadEmitters = new CopyOnWriteArrayList<>();
+            for (SseEmitter emitter : list) {
+                try {
+                    // SSE comment line (starting with ':') is ignored by JS EventSource but keeps TCP alive
+                    emitter.send(SseEmitter.event().comment("ping"));
+                } catch (Exception ex) {
+                    deadEmitters.add(emitter);
+                }
+            }
+            if (!deadEmitters.isEmpty()) {
+                list.removeAll(deadEmitters);
+                if (list.isEmpty()) {
+                    emitters.remove(pasteId);
+                }
+            }
+        });
     }
 
     private void removeEmitter(String pasteId, SseEmitter emitter) {
