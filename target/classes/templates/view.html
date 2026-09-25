@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="${paste.id} + ' — DropBin Live'"></title>
+    <link rel="stylesheet" th:href="@{/style.css}" href="/style.css"/>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
+</head>
+<body>
+
+<!-- Notification banner for remote updates -->
+<div id="notificationBanner" class="notification-banner">
+    <div class="notif-icon" id="notifIcon">🔄</div>
+    <div class="notif-content">
+        <div class="notif-title" id="notifTitle">Remote Update Available</div>
+        <div class="notif-desc" id="notifDesc">Another PC just pushed new updates.</div>
+    </div>
+    <div class="notif-actions" id="notifActions">
+        <button class="notif-btn notif-btn-apply" id="btnApplyRemote">Load</button>
+        <button class="notif-btn notif-btn-dismiss" id="btnDismissRemote">Dismiss</button>
+    </div>
+</div>
+
+<!-- Header -->
+<header class="site-header">
+    <div class="header-left">
+        <a href="/dropbin" class="logo">
+            <span>📦 DropBin</span>
+            <span class="logo-badge">Live</span>
+        </a>
+        <div class="pad-route-badge" title="DropBin Identifier">
+            <span class="prefix">/dropbin/</span><span id="displayPadId" th:text="${paste.id}">pad</span>
+        </div>
+    </div>
+
+    <div class="header-right">
+        <!-- Live Peer / Realtime status -->
+        <div class="peer-badge" title="Live multi-device sync is active">
+            <span class="live-dot"></span>
+            <span id="syncModeText">Sync Active</span>
+        </div>
+
+        <!-- 5-min Expiry Timer Badge -->
+        <div class="peer-badge" title="Expires from database after 5 minutes of inactivity (resets on edit or upload)">
+            <span>⏱️</span>
+            <span>Expires in <strong id="expiryCountdown" style="color:var(--amber); font-family:var(--mono);">05:00</strong></span>
+        </div>
+
+        <!-- Save Status Badge -->
+        <div class="status-pill saved" id="statusPill">
+            <span class="status-dot"></span>
+            <span id="statusText">Saved</span>
+        </div>
+
+        <!-- Share LAN Button -->
+        <button class="btn btn-share" id="btnOpenShare">
+            🌐 Share IP Link
+        </button>
+
+        <!-- New Pad Button -->
+        <a href="/dropbin/new" class="btn btn-secondary">+ New Bin</a>
+    </div>
+</header>
+
+<!-- Network URL access banner -->
+<div class="network-info-bar">
+    <div class="network-links">
+        <span class="net-label">
+            <span>🌐 Network URL (Any PC on LAN):</span>
+        </span>
+        <a href="javascript:void(0)" class="net-pill" id="lanWordPill" title="Click to copy link">
+            <span id="lanWordUrl">Loading...</span>
+            <button class="net-copy-btn" title="Copy">📋</button>
+        </a>
+    </div>
+    <div class="net-label" style="font-size: 0.75rem; color: var(--text-dim);">
+        💡 Access from any device on your network via: <code style="color:var(--primary);">http://<span th:text="${serverLanIp}"></span>:<span th:text="${serverPort}"></span>/dropbin/<span th:text="${paste.id}"></span></code>
+    </div>
+</div>
+
+<!-- Main Editor Canvas -->
+<main class="editor-wrapper">
+    <div class="editor-toolbar">
+        <div class="toolbar-left">
+            <input type="text" id="pasteTitle" class="pad-title-input"
+                   placeholder="Bin Title (optional)"
+                   th:value="${paste.title != null ? paste.title : paste.id}"
+                   maxlength="255"/>
+        </div>
+
+        <div class="toolbar-right">
+            <button class="btn btn-save" id="btnManualSave" title="Save now (Ctrl+S)">
+                💾 Save
+            </button>
+            <button class="btn btn-secondary" id="btnCopyAll" title="Copy entire text to clipboard">
+                📋 Copy All
+            </button>
+            <a th:href="@{'/dropbin/' + ${paste.id} + '/raw'}" target="_blank" class="btn btn-secondary" title="View raw plain text">
+                📄 Raw
+            </a>
+            <button class="btn btn-secondary" id="btnDownload" title="Download as .txt file">
+                ⬇️ Download
+            </button>
+            <button class="btn btn-secondary" id="btnClear" title="Clear bin text">
+                🗑️ Clear
+            </button>
+        </div>
+    </div>
+
+    <!-- The Always-in-Edit-Mode Textarea Container -->
+    <div class="editor-container" id="editorContainer">
+        <!-- Line numbers gutter -->
+        <div class="line-numbers" id="lineNumbers" aria-hidden="true">1</div>
+
+        <!-- The Live Editable Textarea -->
+        <textarea id="editorTextarea" class="editor-textarea"
+                  placeholder="Paste or write your text here... Changes auto-save in 1 second and sync to all connected devices."
+                  spellcheck="false"
+                  autofocus th:text="${paste.content}"></textarea>
+    </div>
+
+    <!-- Footer Status & Counters -->
+    <div class="editor-footer">
+        <div class="stats-group">
+            <span class="stat-item"><strong id="charCount">0</strong> characters</span>
+            <span class="stat-item"><strong id="wordCount">0</strong> words</span>
+            <span class="stat-item"><strong id="lineCount">1</strong> lines</span>
+            <span class="stat-item">Version: <strong id="versionDisplay" th:text="'v' + ${paste.version}">v1</strong></span>
+        </div>
+
+        <div class="footer-hint">
+            <span id="lastSavedTime">Loaded</span> &nbsp;•&nbsp;
+            <span>Auto-saves 1s after typing • 5-min timer resets on edit & upload • <kbd style="background:var(--surface-elev);padding:0.1rem 0.3rem;border-radius:3px;">Tab</kbd> to indent</span>
+        </div>
+    </div>
+
+    <!-- ── Shared Files Section (Image, PDF, Word <= 10MB) ──────────────── -->
+    <section class="attachments-section" id="attachmentsSection">
+        <div class="attachments-header">
+            <div class="attachments-title">
+                <span>📎 Shared Files</span>
+                <span class="file-count-badge" id="fileCountBadge"
+                      th:text="${attachedFiles != null ? #lists.size(attachedFiles) : 0}">0</span>
+                <span class="file-support-hint">Images, PDFs, Word (.doc, .docx) up to 10MB</span>
+            </div>
+            <div>
+                <button class="btn btn-primary" id="btnTriggerUpload" style="font-size:0.82rem; padding:0.4rem 0.85rem;">
+                    + Upload File
+                </button>
+                <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx" multiple style="display:none;"/>
+            </div>
+        </div>
+
+        <!-- Dropzone -->
+        <div class="file-dropzone" id="fileDropzone">
+            <div class="dropzone-content" id="dropzoneContent">
+                <div class="dropzone-icon">📥</div>
+                <div class="dropzone-text">
+                    <strong>Click to browse files</strong> or drag & drop here
+                </div>
+                <div class="dropzone-sub">
+                    Supported: <strong>Images (PNG, JPG, WEBP, GIF, SVG)</strong>, <strong>PDF</strong>, <strong>Word (.doc, .docx)</strong> • Up to <strong>10MB</strong> per file
+                </div>
+            </div>
+
+            <!-- Upload Progress Bar -->
+            <div class="upload-progress-container" id="uploadProgressContainer" style="display:none;">
+                <div class="upload-progress-track">
+                    <div class="upload-progress-fill" id="uploadProgressBar"></div>
+                </div>
+                <span class="upload-progress-text" id="uploadProgressText">Uploading 0%...</span>
+            </div>
+        </div>
+
+        <!-- Files Grid -->
+        <div class="files-grid" id="filesGrid">
+            <!-- Initial server-rendered files using safe data-* attributes (no th:onclick) -->
+            <div th:each="file : ${attachedFiles}" class="file-card" th:id="'file-card-' + ${file.id}"
+                 th:data-file-id="${file.id}"
+                 th:data-filename="${file.originalFilename}"
+                 th:data-view-url="${file.viewUrl}"
+                 th:data-download-url="${file.downloadUrl}"
+                 th:data-category="${file.fileCategory}">
+                <div class="file-card-top">
+                    <span th:class="'file-cat-badge ' + (${file.fileCategory == 'IMAGE'} ? 'cat-image' : (${file.fileCategory == 'PDF'} ? 'cat-pdf' : 'cat-word'))">
+                        <span th:text="${file.fileCategory == 'IMAGE'} ? '🖼️ IMG' : (${file.fileCategory == 'PDF'} ? '📕 PDF' : '📘 DOC')"></span>
+                    </span>
+                    <div class="file-info">
+                        <span class="file-name" th:text="${file.originalFilename}" th:title="${file.originalFilename}"></span>
+                        <div class="file-meta">
+                            <span th:text="${#numbers.formatDecimal(file.fileSize / 1024.0, 1, 1)} + ' KB'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Thumbnail Box (if image) -->
+                <div th:if="${file.fileCategory == 'IMAGE'}" class="file-thumbnail-box btn-preview-image">
+                    <img th:src="${file.viewUrl}" th:alt="${file.originalFilename}" loading="lazy"/>
+                    <div class="file-thumbnail-overlay">🔍 Click to Preview</div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="file-actions">
+                    <div class="file-btn-group">
+                        <button th:if="${file.fileCategory == 'IMAGE'}" type="button" class="file-btn file-btn-primary btn-preview-image">
+                            👁️ View
+                        </button>
+                        <a th:if="${file.fileCategory == 'PDF'}" th:href="${file.viewUrl}" target="_blank" class="file-btn file-btn-primary">
+                            👁️ View PDF
+                        </a>
+                        <a th:href="${file.downloadUrl}" class="file-btn" download th:title="'Download ' + ${file.originalFilename}">
+                            ⬇️ Download
+                        </a>
+                    </div>
+                    <button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+
+            <!-- Empty state -->
+            <div class="files-empty-state" id="filesEmptyState"
+                 th:style="${attachedFiles != null and !attachedFiles.isEmpty()} ? 'display:none;' : ''">
+                No files shared yet. Drag & drop images, PDFs, or Word documents above (up to 10MB).
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- Share Modal -->
+<div class="share-modal" id="shareModal">
+    <div class="share-card">
+        <div class="share-header">
+            <h3>🌐 Network & Share Links</h3>
+            <button class="share-close-btn" id="btnCloseShare">&times;</button>
+        </div>
+        <p style="font-size:0.85rem; color:var(--text-muted);">
+            Share this DropBin with other PCs on your local Wi-Fi or LAN. Anyone opening this link will see and sync changes in real time.
+        </p>
+
+        <div class="share-link-row">
+            <label>Network Link (share with any PC on your network):</label>
+            <div class="share-link-input-group">
+                <input type="text" readonly id="modalLanWordLink" class="share-link-input"/>
+                <button class="share-copy-btn" id="btnCopyLanWord">Copy</button>
+            </div>
+        </div>
+
+        <div class="share-link-row">
+            <label>Localhost Link:</label>
+            <div class="share-link-input-group">
+                <input type="text" readonly id="modalLocalLink" class="share-link-input"/>
+                <button class="share-copy-btn" id="btnCopyLocal">Copy</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="image-modal" id="imagePreviewModal">
+    <div class="image-modal-card">
+        <div class="image-modal-header">
+            <span class="image-modal-title" id="imageModalTitle">Image Preview</span>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <a href="#" id="imageModalDownload" class="btn btn-secondary btn-sm" download>⬇️ Download</a>
+                <button class="share-close-btn" id="btnCloseImageModal">&times;</button>
+            </div>
+        </div>
+        <div class="image-modal-body">
+            <img id="imageModalImg" src="" alt="Preview"/>
+        </div>
+    </div>
+</div>
+
+<!-- Footer with credit -->
+<footer class="site-footer">
+    <div class="footer-left" aria-hidden="true"></div>
+    <div class="footer-center">
+        <span>DropBin Live &nbsp;·&nbsp; Bins auto-expire after 5 minutes of inactivity</span>
+    </div>
+    <div class="footer-right">
+        Developed by <strong>Dhruvin</strong>
+    </div>
+</footer>
+
+<!-- Hidden Metadata for JavaScript -->
+<div style="display:none;"
+     id="metaData"
+     th:data-id="${paste.id}"
+     th:data-version="${paste.version}"
+     th:data-seconds-left="${secondsLeft}"
+     th:data-server-ip="${serverLanIp}"
+     th:data-server-port="${serverPort}"></div>
+
+<!-- Core Script -->
+<script>
+(() => {
+    // ─── Extract Data ─────────────────────────────────────────────────────────
+    const meta = document.getElementById('metaData');
+    const pasteId = meta.dataset.id;
+    let currentVersion = parseInt(meta.dataset.version) || 1;
+    const serverLanIp = meta.dataset.serverIp || 'localhost';
+    const serverPort = meta.dataset.serverPort || '8080';
+
+    // Unique token for this browser tab session to avoid self-triggering remote banners
+    const clientToken = 'tab_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+
+    // DOM Elements
+    const textarea = document.getElementById('editorTextarea');
+    const titleInput = document.getElementById('pasteTitle');
+    const lineNumbers = document.getElementById('lineNumbers');
+    const editorContainer = document.getElementById('editorContainer');
+    const statusPill = document.getElementById('statusPill');
+    const statusText = document.getElementById('statusText');
+    const lastSavedTime = document.getElementById('lastSavedTime');
+    const charCount = document.getElementById('charCount');
+    const wordCount = document.getElementById('wordCount');
+    const lineCount = document.getElementById('lineCount');
+    const versionDisplay = document.getElementById('versionDisplay');
+    const btnManualSave = document.getElementById('btnManualSave');
+    const btnCopyAll = document.getElementById('btnCopyAll');
+    const btnDownload = document.getElementById('btnDownload');
+    const btnClear = document.getElementById('btnClear');
+
+    // Notification Elements
+    const banner = document.getElementById('notificationBanner');
+    const notifTitle = document.getElementById('notifTitle');
+    const notifDesc = document.getElementById('notifDesc');
+    const notifActions = document.getElementById('notifActions');
+    const btnApplyRemote = document.getElementById('btnApplyRemote');
+    const btnDismissRemote = document.getElementById('btnDismissRemote');
+
+    // Share Modal Elements
+    const shareModal = document.getElementById('shareModal');
+    const btnOpenShare = document.getElementById('btnOpenShare');
+    const btnCloseShare = document.getElementById('btnCloseShare');
+    const modalLanWordLink = document.getElementById('modalLanWordLink');
+    const modalLocalLink = document.getElementById('modalLocalLink');
+    const lanWordUrl = document.getElementById('lanWordUrl');
+    const lanWordPill = document.getElementById('lanWordPill');
+
+    // File Elements
+    const fileDropzone = document.getElementById('fileDropzone');
+    const fileInput = document.getElementById('fileInput');
+    const btnTriggerUpload = document.getElementById('btnTriggerUpload');
+    const uploadProgressContainer = document.getElementById('uploadProgressContainer');
+    const uploadProgressBar = document.getElementById('uploadProgressBar');
+    const uploadProgressText = document.getElementById('uploadProgressText');
+    const filesGrid = document.getElementById('filesGrid');
+    const filesEmptyState = document.getElementById('filesEmptyState');
+    const fileCountBadge = document.getElementById('fileCountBadge');
+
+    // Image Modal Elements
+    const imagePreviewModal = document.getElementById('imagePreviewModal');
+    const imageModalTitle = document.getElementById('imageModalTitle');
+    const imageModalImg = document.getElementById('imageModalImg');
+    const imageModalDownload = document.getElementById('imageModalDownload');
+    const btnCloseImageModal = document.getElementById('btnCloseImageModal');
+
+    // State Variables
+    let isDirty = false;
+    let isSaving = false;
+    let lastUserTypingTime = 0;
+    let debounceTimer = null;
+    const DEBOUNCE_DELAY_MS = 1000;
+    let pendingRemoteContent = null;
+    let pendingRemoteVersion = null;
+
+    // ─── 5-Minute Inactivity Expiry Countdown ─────────────────────────────────
+    let remainingExpirySeconds = parseInt(meta.dataset.secondsLeft) || 300;
+    const expiryCountdown = document.getElementById('expiryCountdown');
+
+    function resetExpiryTimer() {
+        remainingExpirySeconds = 300;
+        updateExpiryDisplay();
+    }
+
+    function updateExpiryDisplay() {
+        if (!expiryCountdown) return;
+        if (remainingExpirySeconds <= 0) {
+            expiryCountdown.textContent = 'Expired';
+            expiryCountdown.style.color = '#ef4444';
+            return;
+        }
+        const m = Math.floor(remainingExpirySeconds / 60).toString().padStart(2, '0');
+        const s = (remainingExpirySeconds % 60).toString().padStart(2, '0');
+        expiryCountdown.textContent = `${m}:${s}`;
+        if (remainingExpirySeconds <= 60) {
+            expiryCountdown.style.color = '#ef4444';
+        } else {
+            expiryCountdown.style.color = 'var(--amber)';
+        }
+        remainingExpirySeconds--;
+    }
+    setInterval(updateExpiryDisplay, 1000);
+    updateExpiryDisplay();
+
+    // ─── Setup Network URLs ───────────────────────────────────────────────────
+    const hostPort = (serverPort === '80' || serverPort === '') ? '' : `:${serverPort}`;
+    const lanDropbinFull = `http://${serverLanIp}${hostPort}/dropbin/${pasteId}`;
+    const localFull = `${window.location.origin}/dropbin/${pasteId}`;
+
+    if (lanWordUrl) lanWordUrl.textContent = lanDropbinFull;
+    if (modalLanWordLink) modalLanWordLink.value = lanDropbinFull;
+    if (modalLocalLink) modalLocalLink.value = localFull;
+
+    function copyToClipboard(text, buttonElement) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = buttonElement.textContent;
+            buttonElement.textContent = 'Copied! ✓';
+            buttonElement.style.color = '#15803d';
+            setTimeout(() => {
+                buttonElement.textContent = originalText;
+                buttonElement.style.color = '';
+            }, 1800);
+        });
+    }
+
+    if (lanWordPill) {
+        lanWordPill.addEventListener('click', () => copyToClipboard(lanDropbinFull, lanWordPill.querySelector('.net-copy-btn')));
+    }
+    const btnCopyLanWord = document.getElementById('btnCopyLanWord');
+    if (btnCopyLanWord) {
+        btnCopyLanWord.addEventListener('click', () => copyToClipboard(lanDropbinFull, btnCopyLanWord));
+    }
+    const btnCopyLocal = document.getElementById('btnCopyLocal');
+    if (btnCopyLocal) {
+        btnCopyLocal.addEventListener('click', () => copyToClipboard(localFull, btnCopyLocal));
+    }
+
+    if (btnOpenShare && shareModal) {
+        btnOpenShare.addEventListener('click', () => shareModal.classList.add('open'));
+    }
+    if (btnCloseShare && shareModal) {
+        btnCloseShare.addEventListener('click', () => shareModal.classList.remove('open'));
+    }
+    if (shareModal) {
+        shareModal.addEventListener('click', (e) => {
+            if (e.target === shareModal) shareModal.classList.remove('open');
+        });
+    }
+
+    // ─── Image Modal Handlers ─────────────────────────────────────────────────
+    function openImagePreview(viewUrl, filename, downloadUrl) {
+        imageModalTitle.textContent = filename || 'Image Preview';
+        imageModalImg.src = viewUrl;
+        imageModalDownload.href = downloadUrl;
+        imageModalDownload.download = filename || 'image';
+        imagePreviewModal.classList.add('open');
+    }
+
+    if (btnCloseImageModal && imagePreviewModal) {
+        btnCloseImageModal.addEventListener('click', () => {
+            imagePreviewModal.classList.remove('open');
+            imageModalImg.src = '';
+        });
+    }
+    if (imagePreviewModal) {
+        imagePreviewModal.addEventListener('click', (e) => {
+            if (e.target === imagePreviewModal) {
+                imagePreviewModal.classList.remove('open');
+                imageModalImg.src = '';
+            }
+        });
+    }
+
+    // ─── Event Delegation on filesGrid for Clean Interaction ─────────────────
+    if (filesGrid) {
+        filesGrid.addEventListener('click', (e) => {
+            const previewTrigger = e.target.closest('.btn-preview-image');
+            if (previewTrigger) {
+                const card = previewTrigger.closest('.file-card');
+                if (card) {
+                    openImagePreview(card.dataset.viewUrl, card.dataset.filename, card.dataset.downloadUrl);
+                }
+                return;
+            }
+
+            const deleteTrigger = e.target.closest('.btn-action-delete');
+            if (deleteTrigger) {
+                const card = deleteTrigger.closest('.file-card');
+                if (card && card.dataset.fileId) {
+                    deleteFile(card.dataset.fileId);
+                }
+                return;
+            }
+        });
+    }
+
+    // ─── Text & Gutter Stats ──────────────────────────────────────────────────
+    function updateStatsAndGutter() {
+        if (!textarea) return;
+        const text = textarea.value;
+        if (charCount) charCount.textContent = text.length.toLocaleString();
+
+        const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+        if (wordCount) wordCount.textContent = words.toLocaleString();
+
+        const lines = text.split('\n');
+        if (lineCount) lineCount.textContent = lines.length.toLocaleString();
+
+        if (lineNumbers) {
+            let numbersHtml = '';
+            for (let i = 1; i <= lines.length; i++) {
+                numbersHtml += i + '\n';
+            }
+            lineNumbers.textContent = numbersHtml;
+        }
+    }
+
+    if (textarea && lineNumbers) {
+        textarea.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = textarea.scrollTop;
+        });
+    }
+
+    // ─── Tab Key Indentation ──────────────────────────────────────────────────
+    if (textarea) {
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                textarea.value = textarea.value.substring(0, start) + '    ' + textarea.value.substring(end);
+                textarea.selectionStart = textarea.selectionEnd = start + 4;
+                triggerInput();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveToServer(true);
+            }
+        });
+    }
+
+    // ─── Input & Debounce Auto-Save Buffer ────────────────────────────────────
+    function setStatus(state, message) {
+        if (!statusPill || !statusText) return;
+        statusPill.className = 'status-pill ' + state;
+        statusText.textContent = message;
+    }
+
+    function triggerInput() {
+        isDirty = true;
+        lastUserTypingTime = Date.now();
+        setStatus('dirty', 'Unsaved changes...');
+        updateStatsAndGutter();
+
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(() => {
+            saveToServer(false);
+        }, DEBOUNCE_DELAY_MS);
+    }
+
+    if (textarea) textarea.addEventListener('input', triggerInput);
+    if (titleInput) titleInput.addEventListener('input', triggerInput);
+
+    // ─── Persistence (Save to Server) ─────────────────────────────────────────
+    async function saveToServer(isManual = false) {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        if (!isDirty && !isManual) return;
+        if (!textarea) return;
+
+        isSaving = true;
+        setStatus('saving', 'Saving...');
+
+        try {
+            const payload = {
+                content: textarea.value,
+                title: titleInput ? titleInput.value : pasteId,
+                syntaxLanguage: 'plaintext',
+                clientToken: clientToken
+            };
+
+            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+            const data = await resp.json();
+            currentVersion = data.version;
+            if (versionDisplay) versionDisplay.textContent = 'v' + currentVersion;
+
+            isDirty = false;
+            isSaving = false;
+            setStatus('saved', 'Saved');
+            resetExpiryTimer();
+            const now = new Date();
+            if (lastSavedTime) {
+                lastSavedTime.textContent = 'Saved at ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        } catch (err) {
+            console.error('Failed to save bin:', err);
+            isSaving = false;
+            setStatus('saving', 'Save failed (retrying...)');
+            debounceTimer = setTimeout(() => saveToServer(false), 3000);
+        }
+    }
+
+    if (btnManualSave) {
+        btnManualSave.addEventListener('click', () => saveToServer(true));
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (isDirty && textarea) {
+            const payload = JSON.stringify({
+                content: textarea.value,
+                title: titleInput ? titleInput.value : pasteId,
+                clientToken: clientToken
+            });
+            navigator.sendBeacon(`/api/dropbin/${encodeURIComponent(pasteId)}`, new Blob([payload], { type: 'application/json' }));
+        }
+    });
+
+    // ─── File Upload & Management Logic ───────────────────────────────────────
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+    if (btnTriggerUpload && fileInput) {
+        btnTriggerUpload.addEventListener('click', () => fileInput.click());
+    }
+    if (fileDropzone && fileInput) {
+        fileDropzone.addEventListener('click', (e) => {
+            if (e.target.closest('#uploadProgressContainer')) return;
+            fileInput.click();
+        });
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            fileDropzone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fileDropzone.classList.add('dragover');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            fileDropzone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fileDropzone.classList.remove('dragover');
+            });
+        });
+
+        fileDropzone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+                uploadFiles(files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files && fileInput.files.length > 0) {
+                uploadFiles(fileInput.files);
+            }
+        });
+    }
+
+    function isSupportedFile(file) {
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.pdf') || file.type === 'application/pdf') return true;
+        if (name.endsWith('.doc') || name.endsWith('.docx') ||
+            file.type.includes('msword') ||
+            file.type.includes('wordprocessingml')) return true;
+        if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') ||
+            name.endsWith('.webp') || name.endsWith('.gif') || name.endsWith('.svg') ||
+            name.endsWith('.bmp') || file.type.startsWith('image/')) return true;
+        return false;
+    }
+
+    async function uploadFiles(fileList) {
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`File "${file.name}" exceeds the 10MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB).`);
+                continue;
+            }
+
+            if (!isSupportedFile(file)) {
+                alert(`File "${file.name}" is not supported. Please upload Images, PDFs, or Word documents (.doc, .docx).`);
+                continue;
+            }
+
+            await performUpload(file);
+        }
+        if (fileInput) fileInput.value = '';
+    }
+
+    function performUpload(file) {
+        return new Promise((resolve) => {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            if (uploadProgressContainer) uploadProgressContainer.style.display = 'block';
+            if (uploadProgressBar) uploadProgressBar.style.width = '0%';
+            if (uploadProgressText) uploadProgressText.textContent = `Uploading ${file.name} (0%)...`;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `/api/dropbin/${encodeURIComponent(pasteId)}/files`, true);
+
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    if (uploadProgressBar) uploadProgressBar.style.width = percent + '%';
+                    if (uploadProgressText) uploadProgressText.textContent = `Uploading ${file.name} (${percent}%)...`;
+                }
+            };
+
+            xhr.onload = () => {
+                if (uploadProgressContainer) uploadProgressContainer.style.display = 'none';
+                if (xhr.status === 200 || xhr.status === 201) {
+                    try {
+                        const fileDto = JSON.parse(xhr.responseText);
+                        appendOrUpdateFileCard(fileDto);
+                        resetExpiryTimer();
+                        showToast(`File "${fileDto.originalFilename}" uploaded successfully.`);
+                    } catch (e) {
+                        console.error('Failed to parse upload response:', e);
+                    }
+                } else {
+                    let errMsg = 'Upload failed';
+                    try {
+                        const errObj = JSON.parse(xhr.responseText);
+                        if (errObj.error) errMsg = errObj.error;
+                    } catch (ignored) {}
+                    alert(`Upload error for "${file.name}": ${errMsg}`);
+                }
+                resolve();
+            };
+
+            xhr.onerror = () => {
+                if (uploadProgressContainer) uploadProgressContainer.style.display = 'none';
+                alert(`Network error while uploading "${file.name}".`);
+                resolve();
+            };
+
+            xhr.send(formData);
+        });
+    }
+
+    function updateFileCountBadge() {
+        if (!filesGrid || !fileCountBadge) return;
+        const cards = filesGrid.querySelectorAll('.file-card');
+        const count = cards.length;
+        fileCountBadge.textContent = count;
+        if (filesEmptyState) {
+            filesEmptyState.style.display = count === 0 ? 'block' : 'none';
+        }
+    }
+
+    function appendOrUpdateFileCard(file) {
+        if (!filesGrid) return;
+        const existing = document.getElementById('file-card-' + file.id);
+        if (existing) {
+            existing.remove();
+        }
+
+        const card = document.createElement('div');
+        card.className = 'file-card';
+        card.id = 'file-card-' + file.id;
+        card.dataset.fileId = file.id;
+        card.dataset.filename = file.originalFilename;
+        card.dataset.viewUrl = file.viewUrl;
+        card.dataset.downloadUrl = file.downloadUrl;
+        card.dataset.category = file.fileCategory;
+
+        const sizeKb = (file.fileSize / 1024.0).toFixed(1) + ' KB';
+        let badgeHtml = '';
+        let thumbnailHtml = '';
+        let viewBtnHtml = '';
+
+        if (file.fileCategory === 'IMAGE') {
+            badgeHtml = '<span class="file-cat-badge cat-image">🖼️ IMG</span>';
+            thumbnailHtml = `
+                <div class="file-thumbnail-box btn-preview-image">
+                    <img src="${file.viewUrl}" alt="${file.originalFilename}" loading="lazy"/>
+                    <div class="file-thumbnail-overlay">🔍 Click to Preview</div>
+                </div>`;
+            viewBtnHtml = `<button type="button" class="file-btn file-btn-primary btn-preview-image">👁️ View</button>`;
+        } else if (file.fileCategory === 'PDF') {
+            badgeHtml = '<span class="file-cat-badge cat-pdf">📕 PDF</span>';
+            viewBtnHtml = `<a href="${file.viewUrl}" target="_blank" class="file-btn file-btn-primary">👁️ View PDF</a>`;
+        } else {
+            badgeHtml = '<span class="file-cat-badge cat-word">📘 DOC</span>';
+        }
+
+        card.innerHTML = `
+            <div class="file-card-top">
+                ${badgeHtml}
+                <div class="file-info">
+                    <span class="file-name" title="${file.originalFilename}">${file.originalFilename}</span>
+                    <div class="file-meta">
+                        <span>${sizeKb}</span>
+                    </div>
+                </div>
+            </div>
+            ${thumbnailHtml}
+            <div class="file-actions">
+                <div class="file-btn-group">
+                    ${viewBtnHtml}
+                    <a href="${file.downloadUrl}" class="file-btn" download title="Download ${file.originalFilename}">⬇️ Download</a>
+                </div>
+                <button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">🗑️</button>
+            </div>
+        `;
+
+        filesGrid.insertBefore(card, filesGrid.firstChild);
+        updateFileCountBadge();
+    }
+
+    async function deleteFile(fileId) {
+        if (!confirm('Are you sure you want to delete this file?')) {
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/files/${encodeURIComponent(fileId)}`, {
+                method: 'DELETE'
+            });
+
+            if (resp.ok || resp.status === 204) {
+                const el = document.getElementById('file-card-' + fileId);
+                if (el) el.remove();
+                updateFileCountBadge();
+                resetExpiryTimer();
+                showToast('File deleted successfully.');
+            } else {
+                alert('Could not delete file. It may have already expired or been removed.');
+            }
+        } catch (err) {
+            console.error('Delete file error:', err);
+            alert('Failed to connect to server to delete file.');
+        }
+    }
+
+    // ─── Multi-Device Remote Updates (SSE & Polling) ─────────────────────────
+
+    function showNotification(title, desc, onApply) {
+        if (!notifTitle || !notifDesc || !banner || !notifActions) return;
+        notifTitle.textContent = title;
+        notifDesc.textContent = desc;
+        banner.className = 'notification-banner show conflict';
+        notifActions.style.display = 'flex';
+
+        if (btnApplyRemote) {
+            btnApplyRemote.onclick = () => {
+                if (onApply) onApply();
+                hideNotification();
+            };
+        }
+        if (btnDismissRemote) {
+            btnDismissRemote.onclick = () => {
+                hideNotification();
+            };
+        }
+    }
+
+    function showToast(message) {
+        if (!notifTitle || !notifDesc || !banner || !notifActions) return;
+        notifTitle.textContent = message;
+        notifDesc.textContent = 'Synchronized with latest data.';
+        notifActions.style.display = 'none';
+        banner.className = 'notification-banner show success';
+        setTimeout(hideNotification, 2500);
+    }
+
+    function hideNotification() {
+        if (banner) banner.classList.remove('show');
+    }
+
+    function applyRemoteUpdate(content, title, version) {
+        if (!textarea) return;
+        textarea.value = content || '';
+        if (title && titleInput) titleInput.value = title;
+        currentVersion = version;
+        if (versionDisplay) versionDisplay.textContent = 'v' + currentVersion;
+        isDirty = false;
+        setStatus('saved', 'Synced');
+        resetExpiryTimer();
+        updateStatsAndGutter();
+
+        if (editorContainer) {
+            editorContainer.classList.remove('remote-updated');
+            void editorContainer.offsetWidth;
+            editorContainer.classList.add('remote-updated');
+        }
+
+        const now = new Date();
+        if (lastSavedTime) {
+            lastSavedTime.textContent = 'Synced at ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+    }
+
+    function handleIncomingTextUpdate(data) {
+        if (data.clientToken === clientToken) return;
+        if (data.version && data.version <= currentVersion) return;
+
+        const isUserActivelyTyping = isDirty || (Date.now() - lastUserTypingTime < 2500);
+
+        if (!isUserActivelyTyping) {
+            applyRemoteUpdate(data.content, data.title, data.version);
+            showToast(`Synced text updates from another device (v${data.version})`);
+        } else {
+            pendingRemoteContent = data.content;
+            pendingRemoteVersion = data.version;
+            showNotification(
+                `🔔 Another PC pushed updates (v${data.version})`,
+                'You have unsaved text changes. Choose whether to load the remote version or keep yours.',
+                () => {
+                    applyRemoteUpdate(pendingRemoteContent, data.title, pendingRemoteVersion);
+                }
+            );
+        }
+    }
+
+    // 1. Server-Sent Events (SSE) Stream
+    function initSse() {
+        const streamUrl = `/api/dropbin/${encodeURIComponent(pasteId)}/stream`;
+        const eventSource = new EventSource(streamUrl);
+
+        eventSource.addEventListener('paste_update', (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                handleIncomingTextUpdate(data);
+            } catch (err) {
+                console.error('Error parsing SSE paste_update data:', err);
+            }
+        });
+
+        eventSource.addEventListener('file_uploaded', (e) => {
+            try {
+                const fileDto = JSON.parse(e.data);
+                appendOrUpdateFileCard(fileDto);
+                resetExpiryTimer();
+                showToast(`New file shared: ${fileDto.originalFilename}`);
+            } catch (err) {
+                console.error('Error parsing SSE file_uploaded data:', err);
+            }
+        });
+
+        eventSource.addEventListener('file_deleted', (e) => {
+            try {
+                const payload = JSON.parse(e.data);
+                const el = document.getElementById('file-card-' + payload.fileId);
+                if (el) {
+                    el.remove();
+                    updateFileCountBadge();
+                    resetExpiryTimer();
+                    showToast('A shared file was deleted.');
+                }
+            } catch (err) {
+                console.error('Error parsing SSE file_deleted data:', err);
+            }
+        });
+
+        eventSource.onerror = () => {
+            const el = document.getElementById('syncModeText');
+            if (el) el.textContent = 'Reconnecting...';
+            setTimeout(() => {
+                if (el) el.textContent = 'Sync Active';
+            }, 3000);
+        };
+    }
+
+    // 2. Periodic Polling Fallback (every 2.5s for text status, every 6s for files)
+    async function checkStatus() {
+        if (isSaving) return;
+        try {
+            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/status`);
+            if (resp.ok) {
+                const status = await resp.json();
+                if (status.version && status.version > currentVersion) {
+                    const fullResp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}`);
+                    if (fullResp.ok) {
+                        const fullData = await fullResp.json();
+                        handleIncomingTextUpdate(fullData);
+                    }
+                }
+            }
+        } catch (ignored) {}
+    }
+
+    async function syncFilesList() {
+        if (!filesGrid) return;
+        try {
+            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/files`);
+            if (resp.ok) {
+                const fileList = await resp.json();
+                const currentIds = new Set(fileList.map(f => f.id));
+
+                const existingCards = filesGrid.querySelectorAll('.file-card');
+                existingCards.forEach(card => {
+                    const id = card.dataset.fileId;
+                    if (id && !currentIds.has(id)) {
+                        card.remove();
+                    }
+                });
+
+                fileList.forEach(f => {
+                    if (!document.getElementById('file-card-' + f.id)) {
+                        appendOrUpdateFileCard(f);
+                    }
+                });
+
+                updateFileCountBadge();
+            }
+        } catch (ignored) {}
+    }
+
+    setInterval(checkStatus, 2500);
+    setInterval(syncFilesList, 6000);
+    initSse();
+
+    // ─── Toolbar Actions ──────────────────────────────────────────────────────
+    if (btnCopyAll && textarea) {
+        btnCopyAll.addEventListener('click', () => {
+            copyToClipboard(textarea.value, btnCopyAll);
+        });
+    }
+
+    if (btnDownload && textarea) {
+        btnDownload.addEventListener('click', () => {
+            const blob = new Blob([textarea.value], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = ((titleInput && titleInput.value.trim()) || pasteId) + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    if (btnClear && textarea) {
+        btnClear.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear this bin?')) {
+                textarea.value = '';
+                triggerInput();
+            }
+        });
+    }
+
+    // Initial setup
+    updateStatsAndGutter();
+    updateFileCountBadge();
+    const initDate = new Date();
+    if (lastSavedTime) {
+        lastSavedTime.textContent = 'Loaded at ' + initDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+})();
+</script>
+</body>
+</html>

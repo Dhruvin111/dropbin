@@ -1,0 +1,96 @@
+package com.textbin.controller;
+
+import com.textbin.dto.PasteResponse;
+import com.textbin.dto.PasteStatusDto;
+import com.textbin.dto.SavePasteRequest;
+import com.textbin.model.Paste;
+import com.textbin.service.PasteService;
+import com.textbin.service.PasteSyncService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.Optional;
+
+@RestController
+@RequestMapping({"/api/dropbin", "/api/pastes"})
+public class PasteApiController {
+
+    private final PasteService pasteService;
+    private final PasteSyncService syncService;
+
+    public PasteApiController(PasteService pasteService, PasteSyncService syncService) {
+        this.pasteService = pasteService;
+        this.syncService = syncService;
+    }
+
+    /**
+     * Auto-save / debounce persistence endpoint.
+     */
+    @PostMapping("/{id:[a-zA-Z0-9_\\-\\.]+}")
+    public ResponseEntity<PasteResponse> savePaste(
+            @PathVariable String id,
+            @RequestBody SavePasteRequest request
+    ) {
+        Paste saved = pasteService.saveOrUpdate(
+                id,
+                request.getContent(),
+                request.getTitle(),
+                request.getSyntaxLanguage(),
+                request.getClientToken()
+        );
+
+        PasteResponse resp = new PasteResponse(
+                saved.getId(),
+                saved.getContent(),
+                saved.getTitle(),
+                saved.getSyntaxLanguage(),
+                saved.getVersion(),
+                saved.getUpdatedAt(),
+                request.getClientToken()
+        );
+        return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * Lightweight status check (version, timestamp, length) for polling sync.
+     */
+    @GetMapping("/{id:[a-zA-Z0-9_\\-\\.]+}/status")
+    public ResponseEntity<PasteStatusDto> getStatus(@PathVariable String id) {
+        Optional<Paste> opt = pasteService.findById(id);
+        if (opt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Paste p = opt.get();
+        int len = p.getContent() != null ? p.getContent().length() : 0;
+        return ResponseEntity.ok(new PasteStatusDto(p.getId(), p.getVersion(), p.getUpdatedAt(), len));
+    }
+
+    /**
+     * Full details for a paste.
+     */
+    @GetMapping("/{id:[a-zA-Z0-9_\\-\\.]+}")
+    public ResponseEntity<PasteResponse> getPaste(@PathVariable String id) {
+        return pasteService.findById(id)
+                .map(p -> ResponseEntity.ok(new PasteResponse(
+                        p.getId(),
+                        p.getContent(),
+                        p.getTitle(),
+                        p.getSyntaxLanguage(),
+                        p.getVersion(),
+                        p.getUpdatedAt(),
+                        null
+                )))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    }
+
+    /**
+     * Server-Sent Events stream for instant real-time push to other devices.
+     */
+    @GetMapping(value = "/{id:[a-zA-Z0-9_\\-\\.]+}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamUpdates(@PathVariable String id) {
+        return syncService.subscribe(PasteService.sanitizeId(id));
+    }
+}

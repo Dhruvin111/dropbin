@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-TextbinApplication<textbin>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.textbin.TextbinApplication",
+            "projectName": "textbin",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
