@@ -120,7 +120,10 @@
         const tipExampleLink = document.getElementById('tipExampleLink');
 
         if (window.location.host) {
-            if (urlHostPrefix) urlHostPrefix.textContent = window.location.host;
+            if (urlHostPrefix) {
+                urlHostPrefix.textContent = window.location.host;
+                urlHostPrefix.title = window.location.host;
+            }
             if (tipOriginDisplay) tipOriginDisplay.textContent = window.location.origin;
             if (tipExampleDisplay) tipExampleDisplay.textContent = window.location.origin + '/dropbin/abc';
             if (tipExampleLink) tipExampleLink.href = window.location.origin + '/dropbin/abc';
