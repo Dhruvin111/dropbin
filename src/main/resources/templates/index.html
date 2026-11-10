@@ -40,7 +40,7 @@
             </label>
             <div class="url-input-wrapper">
                 <span class="url-prefix" id="urlPrefix">
-                    <span th:text="${serverLanIp != null ? serverLanIp + ':' + serverPort : 'localhost:8080'}">localhost:8080</span>/dropbin/
+                    <span id="urlHostPrefix" th:text="${serverLanIp != null ? serverLanIp + ':' + serverPort : 'localhost:8080'}">localhost:8080</span>/dropbin/
                 </span>
                 <input type="text" id="customUrlInput" class="url-text-input"
                        placeholder="e.g. abc, meeting-notes, sprint1..."
@@ -63,19 +63,19 @@
         </div>
     </div>
 
-    <!-- LAN Access Tip Card -->
+    <!-- Share Tip Card -->
     <div class="lan-tip-card">
         <div class="lan-tip-icon">🌐</div>
         <div class="lan-tip-text">
-            <h4>Access from Any PC on Your Network</h4>
+            <h4>Instant Access from Anywhere</h4>
             <p>
-                Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by <code>/dropbin/</code> and the pad name:
+                Anyone on the internet can access and collaboratively edit any bin by opening the link with <code>/dropbin/</code> and the pad name:
             </p>
             <div class="lan-tip-code">
-                http://<span th:text="${serverLanIp}">192.168.6.201</span>:<span th:text="${serverPort}">8080</span>/dropbin/<span style="color:#d97706; font-weight:700;">{your-name}</span>
+                <span id="tipOriginDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort : 'http://localhost:8080'}">http://localhost:8080</span>/dropbin/<span style="color:#d97706; font-weight:700;">{your-name}</span>
             </div>
             <p style="margin-top:0.4rem; font-size:0.8rem; color:var(--text-dim);">
-                Example: <a th:href="@{'/dropbin/abc'}" style="color:var(--primary);text-decoration:none;">http://<span th:text="${serverLanIp}">192.168.6.201</span>:<span th:text="${serverPort}">8080</span>/dropbin/abc</a>
+                Example: <a id="tipExampleLink" th:href="@{'/dropbin/abc'}" style="color:var(--primary);text-decoration:none;"><span id="tipExampleDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort + '/dropbin/abc' : 'http://localhost:8080/dropbin/abc'}">http://localhost:8080/dropbin/abc</span></a>
             </p>
         </div>
     </div>
@@ -113,6 +113,20 @@
 </footer>
 
 <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlHostPrefix = document.getElementById('urlHostPrefix');
+        const tipOriginDisplay = document.getElementById('tipOriginDisplay');
+        const tipExampleDisplay = document.getElementById('tipExampleDisplay');
+        const tipExampleLink = document.getElementById('tipExampleLink');
+
+        if (window.location.host) {
+            if (urlHostPrefix) urlHostPrefix.textContent = window.location.host;
+            if (tipOriginDisplay) tipOriginDisplay.textContent = window.location.origin;
+            if (tipExampleDisplay) tipExampleDisplay.textContent = window.location.origin + '/dropbin/abc';
+            if (tipExampleLink) tipExampleLink.href = window.location.origin + '/dropbin/abc';
+        }
+    });
+
     function handleOpenUrl(event) {
         event.preventDefault();
         const input = document.getElementById('customUrlInput');

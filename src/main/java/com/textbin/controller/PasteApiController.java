@@ -31,6 +31,9 @@ public class PasteApiController {
     @Value("${server.port:8080}")
     private int serverPort;
 
+    @Value("${app.base-url:}")
+    private String configuredBaseUrl;
+
     public PasteApiController(PasteService pasteService, PasteSyncService syncService, QrCodeService qrCodeService) {
         this.pasteService = pasteService;
         this.syncService = syncService;
@@ -169,9 +172,50 @@ public class PasteApiController {
     }
 
     private String resolveHost(HttpServletRequest request) {
-        String serverLanIp = NetworkUtil.getLocalNetworkIp();
-        String portPart = (serverPort == 80 || serverPort == 0) ? "" : (":" + serverPort);
-        return "http://" + serverLanIp + portPart;
+        if (configuredBaseUrl != null && !configuredBaseUrl.isBlank()) {
+            return configuredBaseUrl.replaceAll("/+$", "");
+        }
+
+        // Scheme: prioritize X-Forwarded-Proto from cloud edge / reverse proxy (Railway, Cloudflare)
+        String scheme = request.getHeader("X-Forwarded-Proto");
+        if (scheme == null || scheme.isBlank()) {
+            scheme = request.getScheme();
+        }
+        if (scheme == null || scheme.isBlank()) {
+            scheme = "http";
+        }
+
+        // Host: prioritize X-Forwarded-Host, then Host header, then request.getServerName()
+        String host = request.getHeader("X-Forwarded-Host");
+        if (host == null || host.isBlank()) {
+            host = request.getHeader("Host");
+        }
+        if (host == null || host.isBlank()) {
+            host = request.getServerName();
+            int port = request.getServerPort();
+            if (("http".equalsIgnoreCase(scheme) && port != 80 && port > 0) ||
+                ("https".equalsIgnoreCase(scheme) && port != 443 && port > 0)) {
+                host += ":" + port;
+            }
+        }
+
+        // Strip default ports if present
+        if ("http".equalsIgnoreCase(scheme) && host.endsWith(":80")) {
+            host = host.substring(0, host.length() - 3);
+        } else if ("https".equalsIgnoreCase(scheme) && host.endsWith(":443")) {
+            host = host.substring(0, host.length() - 4);
+        }
+
+        // If accessed locally via localhost/127.0.0.1, fallback to LAN IP for phone Wi-Fi scanning
+        if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
+            String serverLanIp = NetworkUtil.getLocalNetworkIp();
+            if (serverLanIp != null && !serverLanIp.isBlank() && !serverLanIp.equals("localhost")) {
+                String portPart = (serverPort == 80 || serverPort == 443 || serverPort == 0) ? "" : (":" + serverPort);
+                return "http://" + serverLanIp + portPart;
+            }
+        }
+
+        return scheme + "://" + host;
     }
 
     private ResponseEntity<byte[]> renderQrResponse(String url, String filename, int size, boolean download) {

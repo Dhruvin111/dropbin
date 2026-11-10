@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+target/
+uploads/
+*.log
+*.sh
+*.cmd
+README.md
+LICENSE
+docker-compose.yml
+init.sql
+

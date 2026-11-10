@@ -75,7 +75,7 @@
 <div class="network-info-bar">
     <div class="network-links">
         <span class="net-label">
-            <span>🌐 Network Links:</span>
+            <span>🌐 Share Links:</span>
         </span>
         <a th:if="${!isReadOnly}" href="javascript:void(0)" class="net-pill" id="lanWordPill" title="Click to copy collaborative link">
             <span id="lanWordUrl">Loading...</span>
@@ -90,7 +90,7 @@
         </a>
     </div>
     <div class="net-label" style="font-size: 0.75rem; color: var(--text-dim);">
-        💡 Access from any device on LAN • Share collaborative edit link or read-only view link
+        💡 Share with anyone on the internet • Collaborative edit link or read-only view link
     </div>
 </div>
 
@@ -270,7 +270,7 @@
 <div class="share-modal" id="shareModal">
     <div class="share-card">
         <div class="share-header">
-            <h3>🌐 Network & Share</h3>
+            <h3>🌐 Share & QR Code</h3>
             <button class="share-close-btn" id="btnCloseShare">&times;</button>
         </div>
 
@@ -283,7 +283,7 @@
         <!-- Tab 1: Share Links -->
         <div id="paneLinks" class="share-tab-pane">
             <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
-                Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.
+                Share this DropBin with anyone over the internet. Send an editable link for live collaboration or a read-only link for view-only access.
             </p>
 
             <!-- Collaborative Edit Link (LAN) -->
@@ -476,11 +476,18 @@
     setInterval(updateExpiryDisplay, 1000);
     updateExpiryDisplay();
 
-    // ─── Setup Network URLs ───────────────────────────────────────────────────
+    // ─── Setup Network & Live URLs ───────────────────────────────────────────
     const hostPort = (serverPort === '80' || serverPort === '') ? '' : `:${serverPort}`;
-    const lanDropbinFull = `http://${serverLanIp}${hostPort}/dropbin/${pasteId}`;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // If accessing via localhost and LAN IP is known, support LAN links for local testing;
+    // Otherwise, always use window.location.origin (HTTPS, custom domain, Railway URL)
+    const baseOrigin = (isLocalhost && serverLanIp && serverLanIp !== 'localhost' && serverLanIp !== '127.0.0.1')
+        ? `http://${serverLanIp}${hostPort}`
+        : window.location.origin;
+
+    const lanDropbinFull = `${baseOrigin}/dropbin/${pasteId}`;
     const readOnlyToken = readOnlyKey || pasteId;
-    const lanReadOnlyFull = `http://${serverLanIp}${hostPort}/dropbin/readonly/${readOnlyToken}`;
+    const lanReadOnlyFull = `${baseOrigin}/dropbin/readonly/${readOnlyToken}`;
 
     if (lanWordUrl) lanWordUrl.textContent = isReadOnly ? lanReadOnlyFull : lanDropbinFull;
     if (modalLanWordLink) modalLanWordLink.value = lanDropbinFull;

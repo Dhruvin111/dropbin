@@ -239,6 +239,30 @@ dropbin/
 
 ---
 
+## ☁️ Deploy to Railway (Live Internet)
+
+Deploying DropBin to the internet on [Railway](https://railway.com) takes less than 3 minutes:
+
+### 1. Push the `live` branch to GitHub
+```bash
+git push origin live
+```
+
+### 2. Create a Railway Project
+1. Log in to [Railway](https://railway.com).
+2. Click **+ New Project** &rarr; **Deploy from GitHub repo**.
+3. Select your repository and choose the `live` branch.
+
+### 3. Add Managed PostgreSQL
+1. Inside your Railway project canvas, click **+ New** &rarr; **Database** &rarr; **Add PostgreSQL**.
+2. Railway will automatically provision PostgreSQL and inject `DATABASE_URL` directly into your web service. Our custom [DataSourceConfig.java](file:///d:/textbin/src/main/java/com/textbin/config/DataSourceConfig.java) automatically converts it to JDBC format.
+
+### 4. Enable Public Domain & Storage (Optional)
+1. In your Web Service settings, go to **Networking** &rarr; click **Generate Domain** (gives you a free `https://*.up.railway.app` URL with automatic SSL).
+2. (Optional) Under **Volumes**, click **Add Volume** and mount it to `/app/uploads` if you want uploaded files to persist across service redeploys.
+
+---
+
 ## 🔒 Production & Deployment Best Practices
 
 When deploying DropBin in a production environment:
