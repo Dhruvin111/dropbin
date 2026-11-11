@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>DropBin Live — Instant TextPad & File Sharing (10MB)</title>
+    <title>DropBin — Instant Collaborative Workspace</title>
     <link rel="stylesheet" th:href="@{/style.css}" href="/style.css"/>
     <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
 </head>
@@ -18,85 +18,127 @@
     </div>
 
     <div class="header-right">
-        <a href="/dropbin/new" class="btn btn-primary">⚡ Open Random Pad</a>
+        <a href="/dropbin/new" class="btn btn-primary">+ New Bin</a>
     </div>
 </header>
 
 <main class="hero-container">
     <div class="hero-header">
-        <div class="hero-tag">⚡ Live Collaborative Text & File Sharing</div>
-        <h1 class="hero-title">Instant DropBin with Live Sync & 10MB File Sharing</h1>
+        <div class="hero-tag">
+            <span class="live-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 6px rgba(16,185,129,0.6);"></span>
+            Real-Time Collaboration
+        </div>
+        <h1 class="hero-title">Instant collaborative pads with zero friction.</h1>
         <p class="hero-subtitle">
-            Create or join any bin instantly by entering a custom URL name or word.
-            Always in edit mode, auto-persisting, and sharing Images, PDFs, and Word documents in real time across devices.
+            Drop into any workspace with a custom URL. Real-time text sync, 10MB file sharing, and automatic 5-minute expiry.
         </p>
     </div>
 
-    <!-- URL Creator / Opener Card -->
-    <div class="create-card">
-        <form id="urlForm" class="url-input-form" onsubmit="handleOpenUrl(event)">
-            <label class="url-input-label" for="customUrlInput">
-                Enter any URL name or word to create or open:
-            </label>
-            <div class="url-input-wrapper">
-                <span class="url-prefix" id="urlPrefix">
-                    <span id="urlHostPrefix" th:text="${serverLanIp != null ? serverLanIp + ':' + serverPort : 'localhost:8080'}">localhost:8080</span>/dropbin/
+    <!-- Dual Action Grid: Creator Card on Left + Direct Access Card on Right -->
+    <div class="hero-action-grid">
+        <!-- URL Creator / Opener Card -->
+        <div class="create-card">
+            <div class="card-header-custom">
+                <div class="create-card-icon">⚡</div>
+                <div>
+                    <h4>Open or Create Bin</h4>
+                    <p>Enter any custom name or choose a quick suggestion</p>
+                </div>
+            </div>
+
+            <form id="urlForm" class="url-input-form" onsubmit="handleOpenUrl(event)">
+                <div class="url-label-row">
+                    <label class="url-input-label" for="customUrlInput">
+                        Workspace Name
+                    </label>
+                    <span class="url-label-hint">Letters, numbers, dashes</span>
+                </div>
+                <div class="url-input-wrapper">
+                    <span class="url-prefix" id="urlPrefix">/dropbin/</span>
+                    <input type="text" id="customUrlInput" class="url-text-input"
+                           placeholder="e.g. notes, standup, sprint-1"
+                           required pattern="[a-zA-Z0-9_\-\.]+"
+                           title="Letters, numbers, underscores, and hyphens"
+                           autofocus/>
+                    <button type="submit" class="btn btn-primary btn-open">
+                        Open Bin →
+                    </button>
+                </div>
+            </form>
+
+            <!-- Quick Suggestion Preset Chips -->
+            <div class="quick-suggestions">
+                <span class="quick-suggestions-label">Suggestions:</span>
+                <div class="quick-chips-group">
+                    <button type="button" class="quick-chip" onclick="fillPreset('notes')">📝 notes</button>
+                    <button type="button" class="quick-chip" onclick="fillPreset('standup')">☕ standup</button>
+                    <button type="button" class="quick-chip" onclick="fillPreset('meeting')">📅 meeting</button>
+                    <button type="button" class="quick-chip" onclick="fillPreset('sprint-1')">🚀 sprint-1</button>
+                    <button type="button" class="quick-chip" onclick="fillPreset('scratch')">💡 scratch</button>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <span style="font-size: 0.85rem; color: var(--text-muted);">
+                    Need an auto-generated private link?
                 </span>
-                <input type="text" id="customUrlInput" class="url-text-input"
-                       placeholder="e.g. abc, meeting-notes, sprint1..."
-                       required pattern="[a-zA-Z0-9_\-\.]+"
-                       title="Letters, numbers, underscores, and hyphens"
-                       autofocus/>
-                <button type="submit" class="btn btn-primary btn-open">
-                    Open or Create Bin →
-                </button>
+                <div style="display:flex; gap:0.5rem;">
+                    <a href="/dropbin/new" class="btn btn-secondary">🎲 Random Bin</a>
+                </div>
             </div>
-        </form>
+        </div>
 
-        <div class="quick-actions">
-            <span style="font-size: 0.85rem; color: var(--text-muted);">
-                Or start with a fresh random URL:
-            </span>
-            <div style="display:flex; gap:0.5rem;">
-                <a href="/dropbin/new" class="btn btn-secondary">🎲 Random Bin (/dropbin/<span style="color:var(--primary);">random-id</span>)</a>
+        <!-- Share & Direct Access Card -->
+        <div class="lan-tip-card">
+            <div class="tip-card-header">
+                <div class="lan-tip-icon">🌐</div>
+                <div>
+                    <h4 id="tipCardHeading">Direct Workspace Access</h4>
+                    <p id="tipCardDesc">
+                        Open or share any workspace directly via URL:
+                    </p>
+                </div>
+            </div>
+
+            <div class="tip-card-body">
+                <div class="lan-tip-code-box">
+                    <span class="lan-tip-code">
+                        <span id="tipOriginDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort : 'http://localhost:8080'}">http://localhost:8080</span>/dropbin/<span style="color:#d97706; font-weight:700;">{name}</span>
+                    </span>
+                    <button type="button" class="btn-copy-format" id="btnCopyFormat" onclick="copyFormatUrl()" title="Copy URL format">
+                        📋 Copy
+                    </button>
+                </div>
+                <p style="margin-top:0.6rem; font-size:0.82rem; color:var(--text-dim);">
+                    Try example: <a id="tipExampleLink" th:href="@{'/dropbin/abc'}" style="color:var(--primary);text-decoration:none; font-weight:600;"><span id="tipExampleDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort + '/dropbin/abc' : 'http://localhost:8080/dropbin/abc'}">http://localhost:8080/dropbin/abc</span></a>
+                </p>
+            </div>
+
+            <div class="tip-card-footer">
+                <span class="tip-pill-badge">⚡ Live Sync</span>
+                <span class="tip-pill-badge">🔒 5-min Auto Expiry</span>
+                <span class="tip-pill-badge">📎 10MB Files</span>
             </div>
         </div>
     </div>
 
-    <!-- Share Tip Card -->
-    <div class="lan-tip-card">
-        <div class="lan-tip-icon">🌐</div>
-        <div class="lan-tip-text">
-            <h4 id="tipCardHeading" th:text="${isLiveMode} ? 'Instant Access from Anywhere' : 'Access from Any Device on Your Network'">Access from Any Device on Your Network</h4>
-            <p id="tipCardDesc" th:text="${isLiveMode} ? 'Anyone on the internet can access and collaboratively edit any bin by opening the link with /dropbin/ and the pad name:' : 'Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by /dropbin/ and the pad name:'">
-                Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by <code>/dropbin/</code> and the pad name:
-            </p>
-            <div class="lan-tip-code">
-                <span id="tipOriginDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort : 'http://localhost:8080'}">http://localhost:8080</span>/dropbin/<span style="color:#d97706; font-weight:700;">{your-name}</span>
-            </div>
-            <p style="margin-top:0.4rem; font-size:0.8rem; color:var(--text-dim);">
-                Example: <a id="tipExampleLink" th:href="@{'/dropbin/abc'}" style="color:var(--primary);text-decoration:none;"><span id="tipExampleDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort + '/dropbin/abc' : 'http://localhost:8080/dropbin/abc'}">http://localhost:8080/dropbin/abc</span></a>
-            </p>
-        </div>
-    </div>
-
-    <!-- Features Overview -->
+    <!-- Features Overview: 4 Columns spanning the widescreen -->
     <div class="features-grid">
         <div class="feature-box">
-            <h4>✍️ Always in Edit Mode</h4>
-            <p>Instant live typing. No extra buttons needed to edit. Tabs and line numbers are built right in.</p>
+            <h4>✍️ Instant Editing</h4>
+            <p>Type immediately with line numbers, character counts, and tab indentation. Zero setup required.</p>
         </div>
         <div class="feature-box">
-            <h4>📎 File Sharing (up to 10MB)</h4>
-            <p>Seamlessly drag-and-drop or upload <strong>Images</strong>, <strong>PDFs</strong>, and <strong>Word documents</strong> (.doc, .docx). Preview or download immediately.</p>
+            <h4>🔄 Real-Time Sync</h4>
+            <p>Powered by Server-Sent Events. Text changes and uploaded files reflect live across all connected peers.</p>
+        </div>
+        <div class="feature-box">
+            <h4>📎 10MB File Sharing</h4>
+            <p>Drag and drop images, PDFs, and Word documents (.doc, .docx) with inline previews and downloads.</p>
         </div>
         <div class="feature-box">
             <h4>⏱️ 5-Minute Inactivity Expiry</h4>
-            <p>Text and files are safely kept and auto-expire 5 minutes after inactivity. Any typing or file upload resets the 5-minute timer.</p>
-        </div>
-        <div class="feature-box">
-            <h4>🔄 Multi-PC Real-Time Sync</h4>
-            <p>Instant peer updates via Server-Sent Events (SSE). Text edits and new file uploads appear live on all connected screens.</p>
+            <p>Privacy-first and ephemeral. Content wipes 5 minutes after inactivity. Any edit resets the timer.</p>
         </div>
     </div>
 </main>
@@ -104,17 +146,16 @@
 <footer class="site-footer">
     <div class="footer-left" aria-hidden="true"></div>
     <div class="footer-center">
-        <span>DropBin Live &nbsp;·&nbsp; Bins auto-expire after 5 minutes of inactivity</span>
-        <span th:if="${activePastes != null}" th:text="'&nbsp;·&nbsp; ' + ${activePastes} + ' active bins in database'"></span>
+        <span>DropBin &nbsp;·&nbsp; Ephemeral collaborative workspaces</span>
+        <span th:if="${activePastes != null and activePastes > 0}" th:text="'&nbsp;·&nbsp; ' + ${activePastes} + ' active'"></span>
     </div>
     <div class="footer-right">
-        Developed by <strong>Dhruvin</strong>
+        Built by <strong>Dhruvin</strong>
     </div>
 </footer>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const urlHostPrefix = document.getElementById('urlHostPrefix');
         const tipOriginDisplay = document.getElementById('tipOriginDisplay');
         const tipExampleDisplay = document.getElementById('tipExampleDisplay');
         const tipExampleLink = document.getElementById('tipExampleLink');
@@ -137,21 +178,39 @@
         if (!isLocal) {
             // Live Internet Mode (Render, Railway, custom domain)
             const liveOrigin = window.location.origin;
-            if (urlHostPrefix) {
-                urlHostPrefix.textContent = window.location.host;
-                urlHostPrefix.title = window.location.host;
-            }
-            if (tipCardHeading) tipCardHeading.textContent = 'Instant Access from Anywhere';
-            if (tipCardDesc) tipCardDesc.textContent = 'Anyone on the internet can access and collaboratively edit any bin by opening the link with /dropbin/ and the pad name:';
+            if (tipCardHeading) tipCardHeading.textContent = 'Direct Workspace Access';
+            if (tipCardDesc) tipCardDesc.textContent = 'Open or share any workspace directly via URL:';
             if (tipOriginDisplay) tipOriginDisplay.textContent = liveOrigin;
             if (tipExampleDisplay) tipExampleDisplay.textContent = liveOrigin + '/dropbin/abc';
             if (tipExampleLink) tipExampleLink.href = liveOrigin + '/dropbin/abc';
         } else {
             // LAN / Local Mode (Wi-Fi, localhost)
-            if (tipCardHeading) tipCardHeading.textContent = 'Access from Any Device on Your Network';
-            if (tipCardDesc) tipCardDesc.textContent = 'Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by /dropbin/ and the pad name:';
+            if (tipCardHeading) tipCardHeading.textContent = 'Direct Workspace Access';
+            if (tipCardDesc) tipCardDesc.textContent = 'Open or share any workspace directly via URL:';
         }
     });
+
+    function fillPreset(name) {
+        const input = document.getElementById('customUrlInput');
+        if (input) {
+            input.value = name;
+            input.focus();
+        }
+    }
+
+    function copyFormatUrl() {
+        const originDisplay = document.getElementById('tipOriginDisplay');
+        const origin = originDisplay ? originDisplay.textContent.trim() : window.location.origin;
+        const urlToCopy = origin + '/dropbin/{name}';
+        navigator.clipboard.writeText(urlToCopy).then(() => {
+            const btn = document.getElementById('btnCopyFormat');
+            if (btn) {
+                const orig = btn.innerHTML;
+                btn.innerHTML = '✓ Copied';
+                setTimeout(() => { btn.innerHTML = orig; }, 1800);
+            }
+        }).catch(() => {});
+    }
 
     function handleOpenUrl(event) {
         event.preventDefault();

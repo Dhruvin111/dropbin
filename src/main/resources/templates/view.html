@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title th:text="${(activeId != null ? activeId : paste.id) + ' — DropBin Live'}"></title>
+    <title th:text="${(activeId != null ? activeId : paste.id) + ' — DropBin'}"></title>
     <link rel="stylesheet" th:href="@{/style.css}" href="/style.css"/>
     <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css"/>
 </head>
@@ -13,8 +13,8 @@
 <div id="notificationBanner" class="notification-banner">
     <div class="notif-icon" id="notifIcon">🔄</div>
     <div class="notif-content">
-        <div class="notif-title" id="notifTitle">Remote Update Available</div>
-        <div class="notif-desc" id="notifDesc">Another PC just pushed new updates.</div>
+        <div class="notif-title" id="notifTitle">Remote Update</div>
+        <div class="notif-desc" id="notifDesc">New updates received from peer.</div>
     </div>
     <div class="notif-actions" id="notifActions">
         <button class="notif-btn notif-btn-apply" id="btnApplyRemote">Load</button>
@@ -40,17 +40,17 @@
         <!-- Read-only Mode Indicator -->
         <div th:if="${isReadOnly}" class="peer-badge" style="border-color:#f59e0b; background:#fffbeb; color:#b45309;" title="Viewing in read-only mode. Edits and uploads are disabled.">
             <span>🔒</span>
-            <span>Read-Only Mode</span>
+            <span>Read-Only</span>
         </div>
 
         <!-- Live Peer / Realtime status -->
-        <div class="peer-badge" title="Live multi-device sync is active">
+        <div class="peer-badge" title="Live sync active">
             <span class="live-dot"></span>
             <span id="syncModeText">Sync Active</span>
         </div>
 
         <!-- 5-min Expiry Timer Badge -->
-        <div class="peer-badge" title="Expires from database after 5 minutes of inactivity (resets on edit or upload)">
+        <div class="peer-badge" title="Expires from database after 5 minutes of inactivity">
             <span>⏱️</span>
             <span>Expires in <strong id="expiryCountdown" style="color:var(--amber); font-family:var(--mono);">05:00</strong></span>
         </div>
@@ -61,9 +61,9 @@
             <span id="statusText" th:text="${isReadOnly} ? 'Read-Only' : 'Saved'">Saved</span>
         </div>
 
-        <!-- Share LAN Button -->
+        <!-- Share Button -->
         <button class="btn btn-share" id="btnOpenShare">
-            🌐 Share Links
+            🌐 Share
         </button>
 
         <!-- New Pad Button -->
@@ -75,23 +75,22 @@
 <div class="network-info-bar">
     <div class="network-links">
         <span class="net-label">
-            <span id="networkLinksTitle" th:text="${isLiveMode} ? '🌐 Share Links:' : '🌐 Network Links:'">🌐 Network Links:</span>
+            <span id="networkLinksTitle">Share:</span>
         </span>
         <a th:if="${!isReadOnly}" href="javascript:void(0)" class="net-pill" id="lanWordPill" title="Click to copy collaborative link">
             <span id="lanWordUrl">Loading...</span>
             <button class="net-copy-btn" title="Copy Edit Link">📋</button>
         </a>
         <a href="javascript:void(0)" class="net-pill" id="lanReadOnlyPill" title="Click to copy read-only link" style="border-color:var(--amber-border); background:var(--amber-light); color:var(--amber-text);">
-            <span>🔒 Read-Only Link</span>
+            <span>🔒 Read-Only</span>
             <button class="net-copy-btn" title="Copy Read-Only Link" style="color:var(--amber-text);">📋</button>
         </a>
         <a href="javascript:void(0)" class="net-pill" id="btnQuickQrPill" title="Open QR Code for instant phone scan" style="border-color:#bae6fd; background:#e0f2fe; color:#0369a1;">
-            <span>📱 Scan QR</span>
+            <span>📱 QR Code</span>
         </a>
     </div>
-    <div class="net-label" style="font-size: 0.75rem; color: var(--text-dim);" id="networkInfoSubtext"
-         th:text="${isLiveMode} ? '💡 Share with anyone on the internet • Collaborative edit link or read-only view link' : '💡 Access from any device on LAN • Share collaborative edit link or read-only view link'">
-        💡 Access from any device on LAN • Share collaborative edit link or read-only view link
+    <div class="net-label" style="font-size: 0.75rem; color: var(--text-dim);" id="networkInfoSubtext">
+        Real-time collaborative workspace
     </div>
 </div>
 
@@ -100,7 +99,7 @@
     <div class="editor-toolbar">
         <div class="toolbar-left">
             <input type="text" id="pasteTitle" class="pad-title-input"
-                   placeholder="Bin Title (optional)"
+                   placeholder="Untitled Bin"
                    th:value="${paste.title != null ? paste.title : (activeId != null ? activeId : paste.id)}"
                    th:readonly="${isReadOnly}"
                    maxlength="255"/>
@@ -110,16 +109,16 @@
             <button th:if="${!isReadOnly}" class="btn btn-save" id="btnManualSave" title="Save now (Ctrl+S)">
                 💾 Save
             </button>
-            <button class="btn btn-secondary" id="btnCopyAll" title="Copy entire text to clipboard">
-                📋 Copy All
+            <button class="btn btn-secondary" id="btnCopyAll" title="Copy text to clipboard">
+                📋 Copy
             </button>
             <a th:href="@{'/dropbin/' + ${paste.id} + '/raw'}" target="_blank" class="btn btn-secondary" title="View raw plain text">
                 📄 Raw
             </a>
-            <button class="btn btn-secondary" id="btnDownload" title="Download as .txt file">
+            <button class="btn btn-secondary" id="btnDownload" title="Download as text file">
                 ⬇️ Download
             </button>
-            <button th:if="${!isReadOnly}" class="btn btn-secondary" id="btnClear" title="Clear bin text">
+            <button th:if="${!isReadOnly}" class="btn btn-secondary" id="btnClear" title="Clear text">
                 🗑️ Clear
             </button>
         </div>
@@ -132,7 +131,7 @@
 
         <!-- The Live Editable Textarea -->
         <textarea id="editorTextarea" class="editor-textarea"
-                  th:placeholder="${isReadOnly} ? 'This bin is in read-only mode. Content updates live when edited by peers.' : 'Paste or write your text here... Changes auto-save in 1 second and sync to all connected devices.'"
+                  th:placeholder="${isReadOnly} ? 'Read-only mode. Content updates live when edited by peers.' : 'Type or paste text here... Changes auto-save and sync in real time.'"
                   spellcheck="false"
                   th:readonly="${isReadOnly}"
                   autofocus th:text="${paste.content}"></textarea>
@@ -144,26 +143,20 @@
             <span class="stat-item"><strong id="charCount">0</strong> characters</span>
             <span class="stat-item"><strong id="wordCount">0</strong> words</span>
             <span class="stat-item"><strong id="lineCount">1</strong> lines</span>
-            <span class="stat-item">Version: <strong id="versionDisplay" th:text="'v' + ${paste.version}">v1</strong></span>
+            <span class="stat-item"><strong id="versionDisplay" th:text="'v' + ${paste.version}">v1</strong></span>
         </div>
 
         <div class="footer-hint">
             <span class="footer-time" id="lastSavedTime">Loaded</span>
             <span class="footer-sep">•</span>
             <span class="footer-info-item" th:if="${isReadOnly}">
-                <span>🔒 Read-only view</span>
-                <span class="footer-sep">•</span>
-                <span>Live sync</span>
-                <span class="footer-sep">•</span>
-                <span>5-min timer</span>
+                <span>Read-only</span>
             </span>
             <span class="footer-info-item" th:unless="${isReadOnly}">
-                <span>Auto-saves 1s after typing</span>
-                <span class="footer-sep">•</span>
-                <span>5-min timer resets on edit &amp; upload</span>
+                <span>Auto-saved</span>
                 <span class="desktop-only-hint">
                     <span class="footer-sep">•</span>
-                    <kbd style="background:var(--surface-elev);padding:0.1rem 0.3rem;border-radius:3px;">Tab</kbd> to indent
+                    <kbd style="background:var(--surface-elev);padding:0.1rem 0.35rem;border-radius:3px;font-size:0.72rem;border:1px solid var(--border);">Tab</kbd> to indent
                 </span>
             </span>
         </div>
@@ -172,22 +165,22 @@
     <!-- ── Shared Files Section (Image, PDF, Word <= 10MB) ──────────────── -->
     <section class="attachments-section" id="attachmentsSection">
         <div class="attachments-header">
-            <div class="attachments-title">
-                <span>📎 Shared Files</span>
-                <span class="file-count-badge" id="fileCountBadge"
-                      th:text="${attachedFiles != null ? #lists.size(attachedFiles) : 0}">0</span>
-                <span class="file-support-hint">Images, PDFs, Word (.doc, .docx) up to 10MB</span>
+            <div class="attachments-title-wrap">
+                <div class="attachments-title">
+                    <span class="attachments-title-text">📎 Shared Files</span>
+                    <span class="file-count-badge" id="fileCountBadge"
+                          th:text="${attachedFiles != null ? #lists.size(attachedFiles) : 0}">0</span>
+                </div>
+                <span class="file-support-hint">Images, PDFs, Word docs (up to 10MB)</span>
             </div>
-            <div th:if="${!isReadOnly}">
-                <button class="btn btn-primary" id="btnTriggerUpload" style="font-size:0.82rem; padding:0.4rem 0.85rem;">
+            <div th:if="${!isReadOnly}" class="attachments-actions">
+                <button class="btn btn-primary btn-upload-trigger" id="btnTriggerUpload">
                     + Upload File
                 </button>
                 <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx" multiple style="display:none;"/>
             </div>
-            <div th:if="${isReadOnly}">
-                <span style="font-size:0.8rem; color:var(--text-dim); background:var(--surface-elev); padding:0.3rem 0.6rem; border-radius:var(--radius-sm); border:1px solid var(--border);">
-                    🔒 Uploads disabled in read-only mode
-                </span>
+            <div th:if="${isReadOnly}" class="attachments-readonly-hint">
+                <span>Uploads disabled in read-only mode</span>
             </div>
         </div>
 
@@ -196,10 +189,10 @@
             <div class="dropzone-content" id="dropzoneContent">
                 <div class="dropzone-icon">📥</div>
                 <div class="dropzone-text">
-                    <strong>Click to browse files</strong> or drag & drop here
+                    <strong>Drop files here</strong> or click to browse
                 </div>
                 <div class="dropzone-sub">
-                    Supported: <strong>Images (PNG, JPG, WEBP, GIF, SVG)</strong>, <strong>PDF</strong>, <strong>Word (.doc, .docx)</strong> • Up to <strong>10MB</strong> per file
+                    Images, PDFs, and Word documents up to 10MB
                 </div>
             </div>
 
@@ -223,7 +216,7 @@
                  th:data-category="${file.fileCategory}">
                 <div class="file-card-top">
                     <span th:class="'file-cat-badge ' + (${file.fileCategory == 'IMAGE'} ? 'cat-image' : (${file.fileCategory == 'PDF'} ? 'cat-pdf' : 'cat-word'))">
-                        <span th:text="${file.fileCategory == 'IMAGE'} ? '🖼️ IMG' : (${file.fileCategory == 'PDF'} ? '📕 PDF' : '📘 DOC')"></span>
+                        <span th:text="${file.fileCategory == 'IMAGE'} ? 'IMG' : (${file.fileCategory == 'PDF'} ? 'PDF' : 'DOC')"></span>
                     </span>
                     <div class="file-info">
                         <span class="file-name" th:text="${file.originalFilename}" th:title="${file.originalFilename}"></span>
@@ -236,20 +229,20 @@
                 <!-- Image Thumbnail Box (if image) -->
                 <div th:if="${file.fileCategory == 'IMAGE'}" class="file-thumbnail-box btn-preview-image">
                     <img th:src="${file.viewUrl}" th:alt="${file.originalFilename}" loading="lazy"/>
-                    <div class="file-thumbnail-overlay">🔍 Click to Preview</div>
+                    <div class="file-thumbnail-overlay">Preview</div>
                 </div>
 
                 <!-- Action Buttons -->
                 <div class="file-actions">
                     <div class="file-btn-group">
                         <button th:if="${file.fileCategory == 'IMAGE'}" type="button" class="file-btn file-btn-primary btn-preview-image">
-                            👁️ View
+                            View
                         </button>
                         <a th:if="${file.fileCategory == 'PDF'}" th:href="${file.viewUrl}" target="_blank" class="file-btn file-btn-primary">
-                            👁️ View PDF
+                            View
                         </a>
                         <a th:href="${file.downloadUrl}" class="file-btn" download th:title="'Download ' + ${file.originalFilename}">
-                            ⬇️ Download
+                            Download
                         </a>
                     </div>
                     <button th:if="${!isReadOnly}" type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">
@@ -261,7 +254,7 @@
             <!-- Empty state -->
             <div class="files-empty-state" id="filesEmptyState"
                  th:style="${attachedFiles != null and !attachedFiles.isEmpty()} ? 'display:none;' : ''">
-                No files shared yet. Drag & drop images, PDFs, or Word documents above (up to 10MB).
+                No files uploaded yet.
             </div>
         </div>
     </section>
@@ -271,26 +264,25 @@
 <div class="share-modal" id="shareModal">
     <div class="share-card">
         <div class="share-header">
-            <h3 id="modalShareHeader" th:text="${isLiveMode} ? '🌐 Share & QR Code' : '🌐 Network & Share'">🌐 Network & Share</h3>
+            <h3 id="modalShareHeader">Share Workspace</h3>
             <button class="share-close-btn" id="btnCloseShare">&times;</button>
         </div>
 
         <!-- Mode Tabs -->
         <div class="share-tabs">
-            <button type="button" class="share-tab-btn active" id="tabBtnLinks">🔗 Share Links</button>
-            <button type="button" class="share-tab-btn" id="tabBtnQr">📱 QR Codes</button>
+            <button type="button" class="share-tab-btn active" id="tabBtnLinks">🔗 Links</button>
+            <button type="button" class="share-tab-btn" id="tabBtnQr">📱 QR Code</button>
         </div>
 
         <!-- Tab 1: Share Links -->
         <div id="paneLinks" class="share-tab-pane">
-            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;" id="modalShareDesc"
-               th:text="${isLiveMode} ? 'Share this DropBin with anyone over the internet. Send an editable link for live collaboration or a read-only link for view-only access.' : 'Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.'">
-                Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;" id="modalShareDesc">
+                Share an edit link for live collaboration, or a read-only link for view access.
             </p>
 
-            <!-- Collaborative Edit Link (LAN) -->
+            <!-- Collaborative Edit Link -->
             <div class="share-link-row" th:unless="${isReadOnly}">
-                <label>✏️ Collaborative Edit Link (Full access):</label>
+                <label>Edit Link (Full access):</label>
                 <div class="share-link-input-group">
                     <input type="text" readonly id="modalLanWordLink" class="share-link-input"/>
                     <button type="button" class="share-copy-btn" id="btnCopyLanWord">Copy</button>
@@ -298,9 +290,9 @@
                 </div>
             </div>
 
-            <!-- Read-Only Link (LAN) -->
+            <!-- Read-Only Link -->
             <div class="share-link-row" th:style="${isReadOnly} ? '' : 'margin-top:0.85rem;'">
-                <label>🔒 Read-Only Link (View & live updates only):</label>
+                <label>Read-Only Link (View only):</label>
                 <div class="share-link-input-group">
                     <input type="text" readonly id="modalLanReadOnlyLink" class="share-link-input"/>
                     <button type="button" class="share-copy-btn" id="btnCopyLanReadOnly">Copy</button>
@@ -313,8 +305,8 @@
         <div id="paneQr" class="share-tab-pane" style="display:none;">
             <!-- Selector between Edit QR and Read-Only QR if not in read-only mode -->
             <div class="qr-mode-selector" id="qrModeSelector" th:unless="${isReadOnly}">
-                <button type="button" class="qr-mode-btn active" id="qrModeBtnEdit">✏️ Collaborative Edit QR</button>
-                <button type="button" class="qr-mode-btn" id="qrModeBtnReadOnly">🔒 Read-Only QR</button>
+                <button type="button" class="qr-mode-btn active" id="qrModeBtnEdit">Edit QR</button>
+                <button type="button" class="qr-mode-btn" id="qrModeBtnReadOnly">Read-Only QR</button>
             </div>
 
             <div class="qr-display-box">
@@ -322,11 +314,11 @@
                     <img id="qrImageElement" src="" alt="DropBin QR Code" width="200" height="200"/>
                 </div>
                 <div class="qr-meta">
-                    <div class="qr-badge badge-edit" id="qrBadgeLabel">✏️ Collaborative Edit Access</div>
-                    <p class="qr-hint" id="qrHintText">📷 Point phone camera at QR code to open live collaborative editor</p>
+                    <div class="qr-badge badge-edit" id="qrBadgeLabel">Edit Access</div>
+                    <p class="qr-hint" id="qrHintText">Scan with a phone camera to open workspace</p>
                     <div class="qr-actions">
-                        <button type="button" class="btn btn-secondary btn-sm" id="btnCopyQrUrl">📋 Copy URL</button>
-                        <a href="#" class="btn btn-primary btn-sm" id="btnDownloadQr" download="dropbin-qr.png">⬇️ Download QR</a>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnCopyQrUrl">Copy URL</button>
+                        <a href="#" class="btn btn-primary btn-sm" id="btnDownloadQr" download="dropbin-qr.png">Download QR</a>
                     </div>
                 </div>
             </div>
@@ -508,17 +500,10 @@
     const modalShareHeader = document.getElementById('modalShareHeader');
     const modalShareDesc = document.getElementById('modalShareDesc');
 
-    if (isLocal) {
-        if (networkLinksTitle) networkLinksTitle.textContent = '🌐 Network Links:';
-        if (networkInfoSubtext) networkInfoSubtext.textContent = '💡 Access from any device on LAN • Share collaborative edit link or read-only view link';
-        if (modalShareHeader) modalShareHeader.textContent = '🌐 Network & Share';
-        if (modalShareDesc) modalShareDesc.textContent = 'Share this DropBin with other devices on your local Wi-Fi or LAN. Send an editable link for live collaboration or a read-only link for view-only access.';
-    } else {
-        if (networkLinksTitle) networkLinksTitle.textContent = '🌐 Share Links:';
-        if (networkInfoSubtext) networkInfoSubtext.textContent = '💡 Share with anyone on the internet • Collaborative edit link or read-only view link';
-        if (modalShareHeader) modalShareHeader.textContent = '🌐 Share & QR Code';
-        if (modalShareDesc) modalShareDesc.textContent = 'Share this DropBin with anyone over the internet. Send an editable link for live collaboration or a read-only link for view-only access.';
-    }
+    if (networkLinksTitle) networkLinksTitle.textContent = 'Share:';
+    if (networkInfoSubtext) networkInfoSubtext.textContent = 'Real-time collaborative workspace';
+    if (modalShareHeader) modalShareHeader.textContent = 'Share Workspace';
+    if (modalShareDesc) modalShareDesc.textContent = 'Share an edit link for live collaboration, or a read-only link for view access.';
 
     if (lanWordUrl) lanWordUrl.textContent = isReadOnly ? lanReadOnlyFull : lanDropbinFull;
     if (modalLanWordLink) modalLanWordLink.value = lanDropbinFull;
@@ -594,9 +579,9 @@
             if (qrImageElement) qrImageElement.src = editQrUrl;
             if (qrBadgeLabel) {
                 qrBadgeLabel.className = 'qr-badge badge-edit';
-                qrBadgeLabel.textContent = '✏️ Collaborative Edit Access';
+                qrBadgeLabel.textContent = 'Edit Access';
             }
-            if (qrHintText) qrHintText.textContent = '📷 Point phone camera at QR code to open live collaborative editor';
+            if (qrHintText) qrHintText.textContent = 'Scan with a phone camera to open workspace';
             if (btnDownloadQr) {
                 btnDownloadQr.href = `${editQrUrl}?download=true`;
                 btnDownloadQr.download = `dropbin-${pasteId}-qr.png`;
@@ -610,9 +595,9 @@
             if (qrImageElement) qrImageElement.src = roQrUrl;
             if (qrBadgeLabel) {
                 qrBadgeLabel.className = 'qr-badge badge-readonly';
-                qrBadgeLabel.textContent = '🔒 Read-Only Access';
+                qrBadgeLabel.textContent = 'Read-Only Access';
             }
-            if (qrHintText) qrHintText.textContent = '📷 Point phone camera at QR code to view bin in read-only mode';
+            if (qrHintText) qrHintText.textContent = 'Scan with a phone camera for view-only access';
             if (btnDownloadQr) {
                 btnDownloadQr.href = `${roQrUrl}?download=true`;
                 btnDownloadQr.download = `dropbin-readonly-${token}-qr.png`;
@@ -1002,18 +987,18 @@
         let viewBtnHtml = '';
 
         if (file.fileCategory === 'IMAGE') {
-            badgeHtml = '<span class="file-cat-badge cat-image">🖼️ IMG</span>';
+            badgeHtml = '<span class="file-cat-badge cat-image">IMG</span>';
             thumbnailHtml = `
                 <div class="file-thumbnail-box btn-preview-image">
                     <img src="${file.viewUrl}" alt="${file.originalFilename}" loading="lazy"/>
-                    <div class="file-thumbnail-overlay">🔍 Click to Preview</div>
+                    <div class="file-thumbnail-overlay">Preview</div>
                 </div>`;
-            viewBtnHtml = `<button type="button" class="file-btn file-btn-primary btn-preview-image">👁️ View</button>`;
+            viewBtnHtml = `<button type="button" class="file-btn file-btn-primary btn-preview-image">View</button>`;
         } else if (file.fileCategory === 'PDF') {
-            badgeHtml = '<span class="file-cat-badge cat-pdf">📕 PDF</span>';
-            viewBtnHtml = `<a href="${file.viewUrl}" target="_blank" class="file-btn file-btn-primary">👁️ View PDF</a>`;
+            badgeHtml = '<span class="file-cat-badge cat-pdf">PDF</span>';
+            viewBtnHtml = `<a href="${file.viewUrl}" target="_blank" class="file-btn file-btn-primary">View</a>`;
         } else {
-            badgeHtml = '<span class="file-cat-badge cat-word">📘 DOC</span>';
+            badgeHtml = '<span class="file-cat-badge cat-word">DOC</span>';
         }
 
         card.innerHTML = `
@@ -1030,7 +1015,7 @@
             <div class="file-actions">
                 <div class="file-btn-group">
                     ${viewBtnHtml}
-                    <a href="${file.downloadUrl}" class="file-btn" download title="Download ${file.originalFilename}">⬇️ Download</a>
+                    <a href="${file.downloadUrl}" class="file-btn" download title="Download ${file.originalFilename}">Download</a>
                 </div>
                 ${isReadOnly ? '' : '<button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file">🗑️</button>'}
             </div>
