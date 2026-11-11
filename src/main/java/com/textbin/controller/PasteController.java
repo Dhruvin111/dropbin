@@ -23,6 +23,9 @@ public class PasteController {
     @Value("${server.port:8080}")
     private int serverPort;
 
+    @Value("${app.mode:auto}")
+    private String appMode;
+
     public PasteController(PasteService pasteService, FileStorageService fileStorageService) {
         this.pasteService = pasteService;
         this.fileStorageService = fileStorageService;
@@ -35,6 +38,7 @@ public class PasteController {
         model.addAttribute("activePastes", pasteService.countActive());
         model.addAttribute("serverLanIp", NetworkUtil.getLocalNetworkIp());
         model.addAttribute("serverPort", serverPort);
+        model.addAttribute("isLiveMode", isLiveEnvironment());
         return "index";
     }
 
@@ -191,11 +195,27 @@ public class PasteController {
         model.addAttribute("serverLanIp", NetworkUtil.getLocalNetworkIp());
         model.addAttribute("serverPort", serverPort);
         model.addAttribute("secondsLeft", paste.secondsUntilExpiry());
+        model.addAttribute("isLiveMode", isLiveEnvironment());
 
         String filePrefix = (isReadOnly && readOnlyKey != null && !readOnlyKey.isBlank()) ? ("readonly/" + readOnlyKey)
                 : null;
         List<BinFileDto> files = fileStorageService.getFilesForPaste(paste.getId(), filePrefix);
         model.addAttribute("attachedFiles", files);
+    }
+
+    private boolean isLiveEnvironment() {
+        if ("live".equalsIgnoreCase(appMode)) {
+            return true;
+        }
+        if ("lan".equalsIgnoreCase(appMode) || "local".equalsIgnoreCase(appMode)) {
+            return false;
+        }
+        // Auto-detect based on cloud platform environment variables
+        return System.getenv("DATABASE_URL") != null
+                || System.getenv("RENDER") != null
+                || System.getenv("RAILWAY_ENVIRONMENT") != null
+                || System.getenv("FLY_APP_NAME") != null
+                || System.getenv("KOYEB_APP_NAME") != null;
     }
 
     // ─── 404 handler ──────────────────────────────────────────────────────────

@@ -67,9 +67,9 @@
     <div class="lan-tip-card">
         <div class="lan-tip-icon">🌐</div>
         <div class="lan-tip-text">
-            <h4>Instant Access from Anywhere</h4>
-            <p>
-                Anyone on the internet can access and collaboratively edit any bin by opening the link with <code>/dropbin/</code> and the pad name:
+            <h4 id="tipCardHeading" th:text="${isLiveMode} ? 'Instant Access from Anywhere' : 'Access from Any Device on Your Network'">Access from Any Device on Your Network</h4>
+            <p id="tipCardDesc" th:text="${isLiveMode} ? 'Anyone on the internet can access and collaboratively edit any bin by opening the link with /dropbin/ and the pad name:' : 'Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by /dropbin/ and the pad name:'">
+                Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by <code>/dropbin/</code> and the pad name:
             </p>
             <div class="lan-tip-code">
                 <span id="tipOriginDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort : 'http://localhost:8080'}">http://localhost:8080</span>/dropbin/<span style="color:#d97706; font-weight:700;">{your-name}</span>
@@ -118,15 +118,38 @@
         const tipOriginDisplay = document.getElementById('tipOriginDisplay');
         const tipExampleDisplay = document.getElementById('tipExampleDisplay');
         const tipExampleLink = document.getElementById('tipExampleLink');
+        const tipCardHeading = document.getElementById('tipCardHeading');
+        const tipCardDesc = document.getElementById('tipCardDesc');
 
-        if (window.location.host) {
+        const isLocalOrLan = (hostname) => {
+            if (!hostname) return true;
+            return hostname === 'localhost' ||
+                   hostname === '127.0.0.1' ||
+                   hostname === '0.0.0.0' ||
+                   hostname.endsWith('.local') ||
+                   hostname.startsWith('192.168.') ||
+                   hostname.startsWith('10.') ||
+                   /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+        };
+
+        const isLocal = isLocalOrLan(window.location.hostname);
+
+        if (!isLocal) {
+            // Live Internet Mode (Render, Railway, custom domain)
+            const liveOrigin = window.location.origin;
             if (urlHostPrefix) {
                 urlHostPrefix.textContent = window.location.host;
                 urlHostPrefix.title = window.location.host;
             }
-            if (tipOriginDisplay) tipOriginDisplay.textContent = window.location.origin;
-            if (tipExampleDisplay) tipExampleDisplay.textContent = window.location.origin + '/dropbin/abc';
-            if (tipExampleLink) tipExampleLink.href = window.location.origin + '/dropbin/abc';
+            if (tipCardHeading) tipCardHeading.textContent = 'Instant Access from Anywhere';
+            if (tipCardDesc) tipCardDesc.textContent = 'Anyone on the internet can access and collaboratively edit any bin by opening the link with /dropbin/ and the pad name:';
+            if (tipOriginDisplay) tipOriginDisplay.textContent = liveOrigin;
+            if (tipExampleDisplay) tipExampleDisplay.textContent = liveOrigin + '/dropbin/abc';
+            if (tipExampleLink) tipExampleLink.href = liveOrigin + '/dropbin/abc';
+        } else {
+            // LAN / Local Mode (Wi-Fi, localhost)
+            if (tipCardHeading) tipCardHeading.textContent = 'Access from Any Device on Your Network';
+            if (tipCardDesc) tipCardDesc.textContent = 'Anyone on your local Wi-Fi or LAN can access and collaboratively edit any bin by writing the server IP followed by /dropbin/ and the pad name:';
         }
     });
 

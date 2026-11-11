@@ -6,9 +6,9 @@ services:
     container_name: textbin_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       textbin
-      POSTGRES_USER:     textbin_user
-      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB:       postgres
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
     volumes:
