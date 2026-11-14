@@ -1,6 +1,9 @@
 package com.textbin.service;
 
 import com.textbin.dto.PasteResponse;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -105,5 +108,17 @@ public class PasteSyncService {
                 } catch (Exception ignored) {}
             }
         }
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        emitters.forEach((pasteId, list) -> {
+            for (SseEmitter emitter : list) {
+                try {
+                    emitter.complete();
+                } catch (Exception ignored) {}
+            }
+        });
+        emitters.clear();
     }
 }

@@ -57,9 +57,16 @@ public class FileStorageService {
         // Ensure paste exists or is created
         pasteService.getOrCreate(pasteId);
 
-        long currentCount = fileRepo.countByPasteId(pasteId);
-        if (currentCount >= MAX_FILES_PER_BIN) {
-            throw new IllegalStateException("Maximum limit of " + MAX_FILES_PER_BIN + " files reached for this workspace. Please delete an existing file before uploading a new one.");
+        // Guard against disk exhaustion (require at least 50MB free space)
+        try {
+            long usableSpace = Files.getFileStore(this.rootStoragePath).getUsableSpace();
+            if (usableSpace < 50L * 1024 * 1024) {
+                log.error("Rejecting upload for paste {}: usable disk space too low ({} MB)",
+                        pasteId, usableSpace / (1024 * 1024));
+                throw new IllegalStateException("Server disk storage is almost full. Uploads are temporarily paused.");
+            }
+        } catch (IOException e) {
+            log.warn("Could not check disk usable space: {}", e.getMessage());
         }
 
         if (file.isEmpty()) {
@@ -87,36 +94,45 @@ public class FileStorageService {
             throw new IllegalArgumentException("Unsupported file type. Only Image, PDF, and Word (.doc, .docx) files are supported.");
         }
 
-        // Generate unique file id
-        String fileId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        BinFile saved;
+        // Synchronize on the workspace key to prevent concurrent uploads exceeding MAX_FILES_PER_BIN
+        synchronized (pasteId.intern()) {
+            long currentCount = fileRepo.countByPasteId(pasteId);
+            if (currentCount >= MAX_FILES_PER_BIN) {
+                throw new IllegalStateException("Maximum limit of " + MAX_FILES_PER_BIN + " files reached for this workspace. Please delete an existing file before uploading a new one.");
+            }
 
-        // Storage directory: ./uploads/{pasteId}/{fileId}/
-        Path targetDir = this.rootStoragePath.resolve(pasteId).resolve(fileId).normalize();
-        Files.createDirectories(targetDir);
+            // Generate unique file id
+            String fileId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        Path targetFilePath = targetDir.resolve(originalFilename).normalize();
+            // Storage directory: ./uploads/{pasteId}/{fileId}/
+            Path targetDir = this.rootStoragePath.resolve(pasteId).resolve(fileId).normalize();
+            Files.createDirectories(targetDir);
 
-        // Safety check against directory traversal
-        if (!targetFilePath.startsWith(this.rootStoragePath)) {
-            throw new SecurityException("Invalid file path resolution.");
+            Path targetFilePath = targetDir.resolve(originalFilename).normalize();
+
+            // Safety check against directory traversal
+            if (!targetFilePath.startsWith(this.rootStoragePath)) {
+                throw new SecurityException("Invalid file path resolution.");
+            }
+
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, targetFilePath, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            BinFile binFile = new BinFile(
+                    fileId,
+                    pasteId,
+                    originalFilename,
+                    contentType,
+                    file.getSize(),
+                    targetFilePath.toString(),
+                    category,
+                    Instant.now()
+            );
+
+            saved = fileRepo.save(binFile);
         }
-
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, targetFilePath, StandardCopyOption.REPLACE_EXISTING);
-        }
-
-        BinFile binFile = new BinFile(
-                fileId,
-                pasteId,
-                originalFilename,
-                contentType,
-                file.getSize(),
-                targetFilePath.toString(),
-                category,
-                Instant.now()
-        );
-
-        BinFile saved = fileRepo.save(binFile);
 
         // Refresh 5-minute inactivity expiry on the parent paste
         pasteService.touch(pasteId);

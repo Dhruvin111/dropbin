@@ -16,10 +16,12 @@
 - 💾 **Debounced Auto-Save & Beacon**: Changes automatically persist 1 second after you stop typing, via `Ctrl+S`, or upon navigating away using `navigator.sendBeacon`.
 - 🔄 **Real-Time Multi-Device Sync (SSE)**: Powered by Server-Sent Events (`SseEmitter`) with a 25-second keep-alive heartbeat (`: ping`). Edits and file uploads from one PC or phone reflect instantly on all other connected screens without websockets or third-party cloud services.
 - 🛡️ **Smart Conflict Protection**: If another device pushes updates while you are actively typing locally, DropBin avoids clobbering your draft and presents a non-intrusive prompt (*Load* vs. *Dismiss*).
-- 📎 **10MB Multi-Format File Sharing**: Drag-and-drop or browse files (Images: PNG, JPG, WEBP, SVG; PDFs; Word `.doc` / `.docx`).
-- 👁️ **Inline Lightbox Preview & Direct Download**: Built-in modal image preview and dedicated preview/download routes for documents.
+- 📎 **File Sharing (Max 5 Files, up to 10MB each)**: Drag-and-drop or browse files (Images: PNG, JPG, WEBP, SVG; PDFs; Word `.doc` / `.docx`). Strictly capped at 5 files per workspace to prevent resource exhaustion.
+- 👁️ **Inline Lightbox Preview & Direct Download**: Built-in modal image preview and dedicated preview/download routes for documents with automatic SVG XSS sandboxing.
 - ⏱️ **5-Minute Inactivity Auto-Expiry**: Resets dynamically on every text edit or file upload. Includes a live countdown timer in the header.
 - 🧹 **Automatic Cleanup Worker**: Background scheduled task runs every 60 seconds (`@Scheduled`) to purge expired pastes and delete uploaded files from disk.
+- 🛡️ **Rate Limiting & DoS Protection**: Built-in sliding-window IP rate limiting (120 saves/min, 20 uploads/min, 30 new bins/min) with proxy IP resolution (`X-Forwarded-For`).
+- 🔒 **Zero-Trust File Security**: Content-Security-Policy sandboxing on SVG previews, path traversal protection, and atomic concurrency locking on uploads.
 - 🌐 **Zero-Config LAN Sharing**: Automatically detects host LAN IP address and generates copyable URLs for instant cross-device sharing across phones, laptops, and workstations on the same Wi-Fi.
 - 🔒 **Secure Read-Only Share Links**: Share unguessable, tokenized view-only links (`/dropbin/readonly/ro_<token>`) that lock the editor and disable uploads for viewers while continuing to stream live updates in real time. Deleting `readonly/` or attempting to edit from a read-only token is automatically blocked and forbidden.
 - 📱 **Integrated Dual QR Codes**: Instant camera scanning for both Collaborative Edit and Read-Only links. Features built-in preview, download to PNG, and direct image endpoints (`/dropbin/{id}/qr` & `/dropbin/readonly/{token}/qr`).
@@ -142,6 +144,8 @@ Once started, open your browser at:
   - `paste_update`: Broadcasts updated text payload, version, and author token.
   - `file_uploaded`: Broadcasts uploaded file metadata DTO.
   - `file_deleted`: Broadcasts deleted file ID.
+  - `files_cleared`: Broadcasts when all attached files are cleared from the workspace.
+  - `bin_deleted`: Broadcasts when the entire bin is taken down.
 
 #### Get Pad Status (Lightweight Polling)
 `GET /api/dropbin/{id}/status`
@@ -161,14 +165,15 @@ Once started, open your browser at:
 
 ---
 
-### File Sharing Endpoints (Up to 10MB)
+### File Sharing Endpoints (Up to 10MB, Max 5 Files)
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/dropbin/{pasteId}/files` | `POST` | Upload file (multipart form field: `file`) |
+| `/api/dropbin/{pasteId}/files` | `POST` | Upload file (multipart field: `file`, max 5 files per bin, max 10MB each) |
 | `/api/dropbin/{pasteId}/files` | `GET` | List all active attached files for the pad |
-| `/api/dropbin/{pasteId}/files/{fileId}` | `DELETE` | Delete an attached file |
-| `/dropbin/{pasteId}/files/{fileId}/view` | `GET` | Inline viewer (Images / PDFs) |
+| `/api/dropbin/{pasteId}/files/{fileId}` | `DELETE` | Delete a single attached file |
+| `/api/dropbin/{pasteId}/files` | `DELETE` | Purge all attached files for the pad |
+| `/dropbin/{pasteId}/files/{fileId}/view` | `GET` | Inline preview (Images / PDFs with CSP sandbox protection) |
 | `/dropbin/{pasteId}/files/{fileId}/download` | `GET` | Download attachment with original filename header |
 
 ---
@@ -202,6 +207,41 @@ spring.thymeleaf.cache=false
 
 ---
 
+## 🛡️ Security & Resource Management
+
+DropBin includes comprehensive, production-grade defenses across memory, storage, concurrency, and client security:
+
+### 1. In-Memory IP Rate Limiting (Flood & DoS Guard)
+- **Service & Interceptor**: `RateLimitingService` and `RateLimitInterceptor` implement sliding-window rate limits per client IP.
+- **Reverse-Proxy Aware**: Extracts real client IPs from `X-Forwarded-For` and `X-Real-IP`, preventing proxy IP collisions on cloud platforms (Railway, Cloudflare, Nginx).
+- **Enforced Thresholds**:
+  - `POST .../files` (Uploads): **20 uploads / minute** per IP.
+  - `POST /api/dropbin/{id}` (Text sync): **120 saves / minute** per IP (accommodating debounced typing bursts while preventing API flooding).
+  - `/dropbin/new` (Workspace generation): **30 requests / minute** per IP.
+  - Returns `HTTP 429 Too Many Requests` with `Retry-After: 60` on violation.
+- **Memory Safety**: Scheduled worker (`@Scheduled(fixedRate = 60_000)`) purges stale IP buckets to ensure bounded heap memory.
+
+### 2. SVG Stored-XSS Mitigation
+- Files served inline (`/view`) feature strict defensive headers:
+  ```http
+  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  ```
+- Any uploaded `.svg` file containing malicious `<script>` tags or event handlers (`onload`, `onerror`) is executed in an isolated, origin-null sandbox where script execution and cookie/DOM access are completely blocked.
+
+### 3. Server Disk Quota & Free Space Protection
+- `FileStorageService` verifies `usableSpace` via `Files.getFileStore()`. If the host disk space drops below **50MB**, incoming uploads are rejected before host storage fills to 100%, preventing database corruption or system lockups.
+
+### 4. Concurrency Guard on 5-File Limit
+- Workspace file uploads are synchronized per workspace key (`synchronized (pasteId.intern())`), eliminating race conditions where parallel upload requests could simultaneously read `count = 4` and bypass the 5-file limit.
+
+### 5. Socket Lifecycle & Graceful Shutdown
+- `SseEmitter` instances are configured with 10-minute timeouts, disconnection event hooks (`onCompletion`, `onTimeout`, `onError`), and periodic heartbeat health checks.
+- On application shutdown/reload, an `@PreDestroy` hook cleanly signals `.complete()` to all active browser connections, preventing hanging threads or zombie sockets.
+
+---
+
 ## 📂 Project Structure
 
 ```text
@@ -216,23 +256,28 @@ dropbin/
     ├── main/
     │   ├── java/com/textbin/
     │   │   ├── TextbinApplication.java    # Application entry point & @EnableScheduling
-    │   │   ├── config/WebConfig.java      # CORS and resource handlers
+    │   │   ├── config/
+    │   │   │   ├── DataSourceConfig.java  # Railway DATABASE_URL adapter
+    │   │   │   ├── RateLimitInterceptor.java # Request throttling interceptor
+    │   │   │   └── WebConfig.java         # Interceptor & static resource registry
     │   │   ├── controller/
-    │   │   │   ├── FileController.java    # File upload, view, download & deletion
+    │   │   │   ├── FileController.java    # File upload, inline preview (CSP), download & purge
     │   │   │   ├── PasteApiController.java# REST API for auto-save, status, & SSE stream
-    │   │   │   └── PasteController.java   # UI web page routes & redirects
+    │   │   │   └── PasteController.java   # UI web page routes & QR redirection
     │   │   ├── dto/                       # Request & Response DTOs
     │   │   ├── model/                     # JPA Entities (Paste, BinFile)
     │   │   ├── repository/                # Spring Data Repositories
     │   │   ├── service/
     │   │   │   ├── CleanupService.java    # 60s background task for expired purge
-    │   │   │   ├── FileStorageService.java# Disk storage and file category validator
+    │   │   │   ├── FileStorageService.java# Disk storage, 5-file cap & space protection
     │   │   │   ├── PasteService.java      # Pad business logic & version management
-    │   │   │   └── PasteSyncService.java  # In-memory SseEmitter real-time broker
+    │   │   │   ├── PasteSyncService.java  # In-memory SseEmitter broker & heartbeat
+    │   │   │   ├── QrCodeService.java     # QR code image generator
+    │   │   │   └── RateLimitingService.java # Sliding-window IP rate limiter
     │   │   └── util/NetworkUtil.java      # Local LAN IP resolution
     │   └── resources/
     │       ├── application.properties     # Application settings
-    │       ├── static/                    # CSS stylesheets and icons
+    │       ├── static/                    # CSS stylesheets and vector icons
     │       └── templates/                 # Thymeleaf views (index.html, view.html)
     └── test/                              # Unit & integration tests
 ```

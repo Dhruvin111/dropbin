@@ -187,12 +187,24 @@ public class FileController {
             String dispositionType = asAttachment ? "attachment" : "inline";
             String contentDisposition = dispositionType + "; filename=\"" + bf.getOriginalFilename().replace("\"", "\\\"") + "\"; filename*=UTF-8''" + encodedFilename;
 
-            return ResponseEntity.ok()
+            String originalFilename = bf.getOriginalFilename();
+            String lowerName = (originalFilename != null) ? originalFilename.toLowerCase() : "";
+            boolean isSvg = "image/svg+xml".equalsIgnoreCase(bf.getContentType()) || lowerName.endsWith(".svg");
+
+            var responseBuilder = ResponseEntity.ok()
                     .contentType(mediaType)
                     .contentLength(bf.getFileSize())
                     .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
                     .header(HttpHeaders.CACHE_CONTROL, "public, max-age=300")
-                    .body(resource);
+                    .header("X-Content-Type-Options", "nosniff")
+                    .header("X-Frame-Options", "SAMEORIGIN");
+
+            // Prevent Stored XSS via SVG scripts when previewed inline
+            if (isSvg) {
+                responseBuilder.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            }
+
+            return responseBuilder.body(resource);
 
         } catch (MalformedURLException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
