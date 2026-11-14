@@ -21,9 +21,15 @@ public class PasteSyncService {
     private final Map<String, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
 
     public SseEmitter subscribe(String pasteId) {
+        // Prevent unbounded memory consumption per workspace
+        List<SseEmitter> list = emitters.computeIfAbsent(pasteId, k -> new CopyOnWriteArrayList<>());
+        if (list.size() >= 100) {
+            throw new IllegalStateException("Maximum real-time listeners reached for this workspace.");
+        }
+
         // 10 minutes timeout; browser EventSource auto-reconnects when closed
         SseEmitter emitter = new SseEmitter(600_000L);
-        emitters.computeIfAbsent(pasteId, k -> new CopyOnWriteArrayList<>()).add(emitter);
+        list.add(emitter);
 
         emitter.onCompletion(() -> removeEmitter(pasteId, emitter));
         emitter.onTimeout(() -> removeEmitter(pasteId, emitter));
@@ -33,6 +39,7 @@ public class PasteSyncService {
             emitter.send(SseEmitter.event().name("init").data("connected"));
         } catch (IOException e) {
             removeEmitter(pasteId, emitter);
+            try { emitter.completeWithError(e); } catch (Exception ignored) {}
         }
 
         return emitter;
@@ -54,9 +61,15 @@ public class PasteSyncService {
                         .data(data));
             } catch (Exception ex) {
                 deadEmitters.add(emitter);
+                try { emitter.completeWithError(ex); } catch (Exception ignored) {}
             }
         }
-        list.removeAll(deadEmitters);
+        if (!deadEmitters.isEmpty()) {
+            list.removeAll(deadEmitters);
+            if (list.isEmpty()) {
+                emitters.remove(pasteId);
+            }
+        }
     }
 
     /**
@@ -75,6 +88,7 @@ public class PasteSyncService {
                     emitter.send(SseEmitter.event().comment("ping"));
                 } catch (Exception ex) {
                     deadEmitters.add(emitter);
+                    try { emitter.completeWithError(ex); } catch (Exception ignored) {}
                 }
             }
             if (!deadEmitters.isEmpty()) {

@@ -59,15 +59,11 @@ public class RateLimitingService {
     }
 
     public static String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String xReal = request.getHeader("X-Real-IP");
-        if (xReal != null && !xReal.isBlank()) {
-            return xReal.trim();
-        }
-        return request.getRemoteAddr();
+        // Rely on remote address provided by servlet container.
+        // Spring Boot's server.forward-headers-strategy=framework will safely populate getRemoteAddr()
+        // when running behind a configured reverse proxy.
+        String remoteAddr = request.getRemoteAddr();
+        return (remoteAddr != null && !remoteAddr.isBlank()) ? remoteAddr : "unknown";
     }
 
     /**

@@ -155,7 +155,7 @@ class TextbinApplicationTests {
                 "file",
                 "screenshot.png",
                 "image/png",
-                new byte[]{1, 2, 3, 4, 5, 6}
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0}
         );
 
         String responseContent = mockMvc.perform(multipart("/api/dropbin/" + testId + "/files")
@@ -186,7 +186,7 @@ class TextbinApplicationTests {
                 "file",
                 "notes.docx",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                new byte[]{80, 75, 3, 4}
+                createValidDocxBytes()
         );
 
         mockMvc.perform(multipart("/api/dropbin/" + testId + "/files")
@@ -224,5 +224,65 @@ class TextbinApplicationTests {
         // Cleanup
         binFileRepository.deleteByPasteId(testId);
         pasteRepository.deleteById(testId);
+    }
+
+    @Test
+    void testSecurityReadOnlyEnforcementAndMimeValidation() throws Exception {
+        String testId = "test-sec-" + System.currentTimeMillis();
+        Paste paste = pasteService.getOrCreate(testId);
+        String roKey = paste.getReadOnlyKey();
+
+        // 1. Read-only key cannot edit via POST /api/dropbin/{roKey}
+        SavePasteRequest saveReq = new SavePasteRequest("Hacked content", "Hacked Title", "plaintext", "attacker");
+        mockMvc.perform(post("/api/dropbin/" + roKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(saveReq)))
+                .andExpect(status().isForbidden());
+
+        // 2. Read-only key cannot upload files via POST /api/dropbin/{roKey}/files
+        MockMultipartFile file = new MockMultipartFile("file", "image.png", "image/png",
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0});
+        mockMvc.perform(multipart("/api/dropbin/" + roKey + "/files").file(file))
+                .andExpect(status().isForbidden());
+
+        // 3. Read-only key cannot take down paste
+        mockMvc.perform(post("/api/dropbin/" + roKey + "/takedown"))
+                .andExpect(status().isForbidden());
+
+        // 4. MIME Confusion: File named exploit.html with image/png MIME must be rejected
+        MockMultipartFile spoofedFile = new MockMultipartFile("file", "exploit.html", "image/png", "<h1>evil</h1>".getBytes());
+        mockMvc.perform(multipart("/api/dropbin/" + testId + "/files").file(spoofedFile))
+                .andExpect(status().isBadRequest());
+
+        // 5. Magic Byte Inspection: File named evil.png containing plain text must be rejected
+        MockMultipartFile fakePngFile = new MockMultipartFile("file", "evil.png", "image/png", "This is plain text pretending to be png".getBytes());
+        mockMvc.perform(multipart("/api/dropbin/" + testId + "/files").file(fakePngFile))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("Invalid or corrupted file header")));
+
+        // 6. Read-only view template must NOT leak the secret edit ID in raw link
+        mockMvc.perform(get("/dropbin/readonly/" + roKey))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/dropbin/readonly/" + roKey + "/raw")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/dropbin/" + testId + "/raw"))));
+
+        // Cleanup
+        pasteRepository.deleteById(testId);
+    }
+
+    private static byte[] createValidDocxBytes() {
+        try (java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+             java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("[Content_Types].xml"));
+            zos.write("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"></Types>".getBytes());
+            zos.closeEntry();
+            zos.putNextEntry(new java.util.zip.ZipEntry("word/document.xml"));
+            zos.write("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"></w:document>".getBytes());
+            zos.closeEntry();
+            zos.finish();
+            return baos.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

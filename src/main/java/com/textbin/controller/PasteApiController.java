@@ -46,19 +46,20 @@ public class PasteApiController {
     /**
      * Auto-save / debounce persistence endpoint.
      */
-    @PostMapping("/{id:[a-zA-Z0-9_\\-\\.]+}")
+    @PostMapping("/{id:[a-zA-Z0-9_\\-]{1,64}}")
     public ResponseEntity<?> savePaste(
             @PathVariable String id,
             @RequestBody SavePasteRequest request
     ) {
+        String cleanId = PasteService.sanitizeId(id);
         // Enforce server-side security: Reject edits if accessed with a read-only key
-        if (pasteService.isReadOnlyKey(id) || id.startsWith("ro_")) {
+        if (pasteService.isReadOnlyKey(cleanId) || cleanId.startsWith("ro_")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(java.util.Map.of("error", "This bin is being accessed in read-only mode and cannot be edited."));
         }
 
         Paste saved = pasteService.saveOrUpdate(
-                id,
+                cleanId,
                 request.getContent(),
                 request.getTitle(),
                 request.getSyntaxLanguage(),
@@ -80,7 +81,7 @@ public class PasteApiController {
     /**
      * Takedown / Delete bin immediately (wiping text and all attached files).
      */
-    @DeleteMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}"})
+    @DeleteMapping({"/{id:[a-zA-Z0-9_\\-]{1,64}}", "/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}"})
     public ResponseEntity<?> takedownPasteByDelete(@PathVariable String id) {
         return processTakedown(id);
     }
@@ -88,7 +89,7 @@ public class PasteApiController {
     /**
      * Fallback endpoint for environments where DELETE is restricted or converted to POST.
      */
-    @PostMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}/takedown", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}/takedown"})
+    @PostMapping({"/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown", "/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown"})
     public ResponseEntity<?> takedownPasteByPost(@PathVariable String id) {
         return processTakedown(id);
     }
@@ -120,7 +121,15 @@ public class PasteApiController {
                     .warn("Non-fatal error broadcasting takedown for {}: {}", cleanId, e.getMessage());
         }
 
-        // 3. Delete the paste from database
+        // 3. Immediately close and terminate active SSE streams for this paste
+        try {
+            syncService.closeEmitters(cleanId);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PasteApiController.class)
+                    .warn("Non-fatal error closing SSE emitters for {}: {}", cleanId, e.getMessage());
+        }
+
+        // 4. Delete the paste from database
         try {
             pasteService.deletePaste(cleanId);
         } catch (Exception e) {
@@ -138,7 +147,7 @@ public class PasteApiController {
     /**
      * Lightweight status check (version, timestamp, length) for polling sync.
      */
-    @GetMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}/status", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}/status"})
+    @GetMapping({"/{id:[a-zA-Z0-9_\\-]{1,64}}/status", "/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}/status"})
     public ResponseEntity<PasteStatusDto> getStatus(@PathVariable String id) {
         Optional<Paste> opt = pasteService.findById(id);
         if (opt.isEmpty()) {
@@ -155,7 +164,7 @@ public class PasteApiController {
     /**
      * Full details for a paste.
      */
-    @GetMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}"})
+    @GetMapping({"/{id:[a-zA-Z0-9_\\-]{1,64}}", "/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}"})
     public ResponseEntity<PasteResponse> getPaste(@PathVariable String id) {
         Optional<Paste> opt = pasteService.findById(id);
         if (opt.isEmpty()) {
@@ -177,20 +186,23 @@ public class PasteApiController {
     /**
      * Server-Sent Events stream for instant real-time push to other devices.
      */
-    @GetMapping(value = {"/{id:[a-zA-Z0-9_\\-\\.]+}/stream", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}/stream"}, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = {"/{id:[a-zA-Z0-9_\\-]{1,64}}/stream", "/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}/stream"}, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamUpdates(@PathVariable String id) {
         String cleanId = PasteService.sanitizeId(id);
-        Optional<Paste> roPaste = pasteService.findByReadOnlyKey(cleanId);
-        if (roPaste.isPresent()) {
-            return syncService.subscribe(roPaste.get().getId());
+        Optional<Paste> opt = pasteService.findById(cleanId);
+        if (opt.isEmpty()) {
+            opt = pasteService.findByReadOnlyKey(cleanId);
         }
-        return syncService.subscribe(cleanId);
+        if (opt.isEmpty()) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND, "Workspace does not exist");
+        }
+        return syncService.subscribe(opt.get().getId());
     }
 
     /**
      * QR Code for Collaborative Edit Link.
      */
-    @GetMapping(value = "/{id:[a-zA-Z0-9_\\-\\.]+}/qr", produces = MediaType.IMAGE_PNG_VALUE)
+    @GetMapping(value = "/{id:[a-zA-Z0-9_\\-]{1,64}}/qr", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getEditQrCode(
             @PathVariable String id,
             @RequestParam(defaultValue = "300") int size,
@@ -215,7 +227,7 @@ public class PasteApiController {
     /**
      * QR Code for Secure Read-Only Link.
      */
-    @GetMapping(value = "/readonly/{readOnlyKey:[a-zA-Z0-9_\\-\\.]+}/qr", produces = MediaType.IMAGE_PNG_VALUE)
+    @GetMapping(value = "/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}/qr", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getReadOnlyQrCode(
             @PathVariable String readOnlyKey,
             @RequestParam(defaultValue = "300") int size,
@@ -239,19 +251,19 @@ public class PasteApiController {
 
         // Scheme: prioritize X-Forwarded-Proto from cloud edge / reverse proxy (Railway, Cloudflare)
         String scheme = request.getHeader("X-Forwarded-Proto");
-        if (scheme == null || scheme.isBlank()) {
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
             scheme = request.getScheme();
         }
-        if (scheme == null || scheme.isBlank()) {
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
             scheme = "http";
         }
 
-        // Host: prioritize X-Forwarded-Host, then Host header, then request.getServerName()
+        // Sanitize / validate host name to prevent Host Header Injection
         String host = request.getHeader("X-Forwarded-Host");
         if (host == null || host.isBlank()) {
             host = request.getHeader("Host");
         }
-        if (host == null || host.isBlank()) {
+        if (host == null || !host.matches("^[a-zA-Z0-9.\\-:]+$")) {
             host = request.getServerName();
             int port = request.getServerPort();
             if (("http".equalsIgnoreCase(scheme) && port != 80 && port > 0) ||

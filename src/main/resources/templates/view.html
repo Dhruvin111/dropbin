@@ -132,7 +132,7 @@
                 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>Copy</span>
             </button>
-            <a th:href="@{'/dropbin/' + ${paste.id} + '/raw'}" target="_blank" class="btn btn-secondary" title="View raw plain text">
+            <a th:href="@{'/dropbin/' + ${activeId} + '/raw'}" target="_blank" class="btn btn-secondary" title="View raw plain text">
                 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                 <span>Raw</span>
             </a>
@@ -438,7 +438,7 @@
 </div>
 
 <!-- Hidden fallback form for takedown -->
-<form id="takedownFallbackForm" method="POST" th:action="@{'/dropbin/' + ${paste.id} + '/takedown'}" style="display:none;"></form>
+<form th:if="${!isReadOnly}" id="takedownFallbackForm" method="POST" th:action="@{'/dropbin/' + ${paste.id} + '/takedown'}" style="display:none;"></form>
 
 <!-- Takedown Peer Notice Modal (Displayed to any connected collaborator when taken down) -->
 <div class="share-modal" id="takedownNoticeModal">
@@ -1255,6 +1255,13 @@
         }
     }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
     function appendOrUpdateFileCard(file) {
         if (!filesGrid) return;
         const existing = document.getElementById('file-card-' + file.id);
@@ -1262,15 +1269,22 @@
             existing.remove();
         }
 
+        const currentPadPrefix = isReadOnly ? ('readonly/' + (readOnlyKey || pasteId)) : pasteId;
+        const viewUrl = `/dropbin/${encodeURIComponent(currentPadPrefix)}/files/${encodeURIComponent(file.id)}/view`;
+        const downloadUrl = `/dropbin/${encodeURIComponent(currentPadPrefix)}/files/${encodeURIComponent(file.id)}/download`;
+
         const card = document.createElement('div');
         card.className = 'file-card';
         card.id = 'file-card-' + file.id;
         card.dataset.fileId = file.id;
         card.dataset.filename = file.originalFilename;
-        card.dataset.viewUrl = file.viewUrl;
-        card.dataset.downloadUrl = file.downloadUrl;
+        card.dataset.viewUrl = viewUrl;
+        card.dataset.downloadUrl = downloadUrl;
         card.dataset.category = file.fileCategory;
 
+        const safeFilename = escapeHtml(file.originalFilename);
+        const safeViewUrl = encodeURI(viewUrl);
+        const safeDownloadUrl = encodeURI(downloadUrl);
         const sizeKb = (file.fileSize / 1024.0).toFixed(1) + ' KB';
         let badgeHtml = '';
         let thumbnailHtml = '';
@@ -1280,13 +1294,13 @@
             badgeHtml = '<span class="file-cat-badge cat-image">IMG</span>';
             thumbnailHtml = `
                 <div class="file-thumbnail-box btn-preview-image">
-                    <img src="${file.viewUrl}" alt="${file.originalFilename}" loading="lazy"/>
+                    <img src="${safeViewUrl}" alt="${safeFilename}" loading="lazy"/>
                     <div class="file-thumbnail-overlay">Preview</div>
                 </div>`;
             viewBtnHtml = `<button type="button" class="file-btn file-btn-primary btn-preview-image">View</button>`;
         } else if (file.fileCategory === 'PDF') {
             badgeHtml = '<span class="file-cat-badge cat-pdf">PDF</span>';
-            viewBtnHtml = `<a href="${file.viewUrl}" target="_blank" class="file-btn file-btn-primary">View</a>`;
+            viewBtnHtml = `<a href="${safeViewUrl}" target="_blank" class="file-btn file-btn-primary">View</a>`;
         } else {
             badgeHtml = '<span class="file-cat-badge cat-word">DOC</span>';
         }
@@ -1295,7 +1309,7 @@
             <div class="file-card-top">
                 ${badgeHtml}
                 <div class="file-info">
-                    <span class="file-name" title="${file.originalFilename}">${file.originalFilename}</span>
+                    <span class="file-name" title="${safeFilename}">${safeFilename}</span>
                     <div class="file-meta">
                         <span>${sizeKb}</span>
                     </div>
@@ -1305,7 +1319,7 @@
             <div class="file-actions">
                 <div class="file-btn-group">
                     ${viewBtnHtml}
-                    <a href="${file.downloadUrl}" class="file-btn" download title="Download ${file.originalFilename}">Download</a>
+                    <a href="${safeDownloadUrl}" class="file-btn" download title="Download ${safeFilename}">Download</a>
                 </div>
                 ${isReadOnly ? '' : '<button type="button" class="file-btn file-btn-delete btn-action-delete" title="Delete file"><svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>'}
             </div>

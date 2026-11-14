@@ -37,7 +37,7 @@ public class FileController {
 
     // ─── 1. Upload File (up to 10MB; Image, PDF, Word) ───────────────────────
     @PostMapping(
-            value = {"/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files", "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files"},
+            value = {"/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files", "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"},
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ResponseEntity<?> uploadFile(
@@ -61,9 +61,9 @@ public class FileController {
 
     // ─── 2. List Files for Pad ────────────────────────────────────────────────
     @GetMapping({
-            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files",
-            "/api/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files",
-            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files"
+            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
+            "/api/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
+            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
     })
     public ResponseEntity<List<BinFileDto>> listFiles(@PathVariable String pasteId) {
         boolean isRo = pasteService.isReadOnlyKey(pasteId);
@@ -77,8 +77,8 @@ public class FileController {
 
     // ─── 3. Delete File ───────────────────────────────────────────────────────
     @DeleteMapping({
-            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}",
-            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}"
+            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}",
+            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}"
     })
     public ResponseEntity<?> deleteFile(
             @PathVariable String pasteId,
@@ -97,8 +97,8 @@ public class FileController {
 
     // ─── 3b. Delete All Files for Bin ──────────────────────────────────────────
     @DeleteMapping({
-            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files",
-            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files"
+            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
+            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
     })
     public ResponseEntity<?> deleteAllFiles(@PathVariable String pasteId) {
         if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
@@ -111,10 +111,10 @@ public class FileController {
 
     // ─── 4. View File Inline (Images, PDF) ────────────────────────────────────
     @GetMapping({
-            "/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view",
-            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view",
-            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view",
-            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/view"
+            "/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
+            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
+            "/word/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
+            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view"
     })
     public ResponseEntity<Resource> viewFile(
             @PathVariable String pasteId,
@@ -125,10 +125,10 @@ public class FileController {
 
     // ─── 5. Download File Attachment (Word, PDF, Images) ──────────────────────
     @GetMapping({
-            "/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download",
-            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download",
-            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download",
-            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/download"
+            "/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
+            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
+            "/word/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
+            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download"
     })
     public ResponseEntity<Resource> downloadFile(
             @PathVariable String pasteId,
@@ -139,10 +139,10 @@ public class FileController {
 
     // ─── 6. Friendly File URL with original filename ─────────────────────────
     @GetMapping({
-            "/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}",
-            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}",
-            "/word/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}",
-            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files/{fileId:[a-zA-Z0-9_\\-\\.]+}/{filename:.+}"
+            "/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
+            "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
+            "/word/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
+            "/word/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}"
     })
     public ResponseEntity<Resource> getNamedFile(
             @PathVariable String pasteId,
@@ -184,12 +184,11 @@ public class FileController {
 
             String encodedFilename = URLEncoder.encode(bf.getOriginalFilename(), StandardCharsets.UTF_8)
                     .replace("+", "%20");
-            String dispositionType = asAttachment ? "attachment" : "inline";
-            String contentDisposition = dispositionType + "; filename=\"" + bf.getOriginalFilename().replace("\"", "\\\"") + "\"; filename*=UTF-8''" + encodedFilename;
-
-            String originalFilename = bf.getOriginalFilename();
-            String lowerName = (originalFilename != null) ? originalFilename.toLowerCase() : "";
-            boolean isSvg = "image/svg+xml".equalsIgnoreCase(bf.getContentType()) || lowerName.endsWith(".svg");
+            // Word documents must always be forced as attachment; images and pdf can be viewed inline
+            boolean forceAttachment = asAttachment || "WORD".equalsIgnoreCase(bf.getFileCategory());
+            String dispositionType = forceAttachment ? "attachment" : "inline";
+            String safeHeaderFilename = bf.getOriginalFilename().replaceAll("[\\r\\n\"]", "_");
+            String contentDisposition = dispositionType + "; filename=\"" + safeHeaderFilename + "\"; filename*=UTF-8''" + encodedFilename;
 
             var responseBuilder = ResponseEntity.ok()
                     .contentType(mediaType)
@@ -197,12 +196,9 @@ public class FileController {
                     .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition)
                     .header(HttpHeaders.CACHE_CONTROL, "public, max-age=300")
                     .header("X-Content-Type-Options", "nosniff")
-                    .header("X-Frame-Options", "SAMEORIGIN");
-
-            // Prevent Stored XSS via SVG scripts when previewed inline
-            if (isSvg) {
-                responseBuilder.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-            }
+                    .header("X-Frame-Options", "DENY")
+                    // Enforce restrictive CSP on ALL served uploads to prevent Stored XSS
+                    .header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
 
             return responseBuilder.body(resource);
 

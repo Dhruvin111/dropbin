@@ -47,6 +47,13 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 return false;
             }
         }
+        // 4. Real-time SSE Streams: Max 30 connection subscriptions / minute per IP
+        else if (path.endsWith("/stream")) {
+            if (!rateLimitingService.allowRequest(clientIp, "stream", 30)) {
+                sendRateLimitResponse(response, "Too many real-time connection attempts. Please slow down.");
+                return false;
+            }
+        }
 
         return true;
     }

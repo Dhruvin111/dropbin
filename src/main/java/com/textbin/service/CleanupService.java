@@ -20,10 +20,12 @@ public class CleanupService {
 
     private final PasteRepository pasteRepo;
     private final FileStorageService fileStorageService;
+    private final PasteSyncService syncService;
 
-    public CleanupService(PasteRepository pasteRepo, FileStorageService fileStorageService) {
+    public CleanupService(PasteRepository pasteRepo, FileStorageService fileStorageService, PasteSyncService syncService) {
         this.pasteRepo = pasteRepo;
         this.fileStorageService = fileStorageService;
+        this.syncService = syncService;
     }
 
     @Scheduled(fixedDelay = 60_000)   // every 60 seconds after last run finishes
@@ -31,14 +33,24 @@ public class CleanupService {
     public void purgeExpiredPastes() {
         Instant now = Instant.now();
 
-        // 1. Delete physical files and records from bin_files
+        // 1. Close real-time SSE emitters for expired workspaces
+        try {
+            java.util.List<String> expiredIds = pasteRepo.findExpiredPasteIds(now);
+            for (String id : expiredIds) {
+                syncService.closeEmitters(id);
+            }
+        } catch (Exception ex) {
+            log.warn("Error closing emitters for expired pastes: {}", ex.getMessage());
+        }
+
+        // 2. Delete physical files and records from bin_files
         try {
             fileStorageService.cleanupExpiredFiles(now);
         } catch (Exception ex) {
             log.error("Error during expired file cleanup: {}", ex.getMessage());
         }
 
-        // 2. Delete expired pastes from database
+        // 3. Delete expired pastes from database
         int deleted = pasteRepo.deleteAllExpiredBefore(now);
         if (deleted > 0) {
             log.info("Cleanup: deleted {} expired paste(s)", deleted);

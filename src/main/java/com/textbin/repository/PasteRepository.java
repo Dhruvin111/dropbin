@@ -1,9 +1,12 @@
 package com.textbin.repository;
 
 import com.textbin.model.Paste;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -27,4 +30,11 @@ public interface PasteRepository extends JpaRepository<Paste, String> {
     Optional<Paste> findByReadOnlyKey(String readOnlyKey);
 
     boolean existsByReadOnlyKey(String readOnlyKey);
+
+    @Query("SELECT p.id FROM Paste p WHERE p.expiresAt < :now")
+    java.util.List<String> findExpiredPasteIds(@Param("now") Instant now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Paste p WHERE p.id = :id")
+    Optional<Paste> findByIdForUpdate(@Param("id") String id);
 }

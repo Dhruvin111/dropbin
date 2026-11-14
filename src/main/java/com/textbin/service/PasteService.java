@@ -181,13 +181,12 @@ public class PasteService {
             return "pad";
         }
         String clean = rawId.trim();
-        while (clean.startsWith("/")) {
-            clean = clean.substring(1);
+        // Disallow dots (prevent directory traversal e.g. '..'), slashes, and special characters
+        clean = clean.replaceAll("[^a-zA-Z0-9_\\-]", "-");
+        clean = clean.replaceAll("-+", "-").replaceAll("^-|-$", "");
+        if (clean.length() > 64) {
+            clean = clean.substring(0, 64).replaceAll("-$", "");
         }
-        while (clean.endsWith("/")) {
-            clean = clean.substring(0, clean.length() - 1);
-        }
-        clean = clean.replace(" ", "-");
         return clean.isBlank() ? "pad" : clean;
     }
 }
