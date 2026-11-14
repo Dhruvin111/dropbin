@@ -132,10 +132,45 @@ public class PasteService {
                 saved.getSyntaxLanguage(),
                 saved.getVersion(),
                 saved.getUpdatedAt(),
-                clientToken
+                clientToken,
+                saved.isLocked()
         );
         syncService.broadcastUpdate(cleanId, update);
 
+        return saved;
+    }
+
+    @Transactional
+    public Paste setPassword(String rawId, String newPassword) {
+        String cleanId = sanitizeId(rawId);
+        Paste paste = getOrCreate(cleanId);
+        paste.setPasswordHash(com.textbin.util.PasswordUtil.hash(newPassword));
+        Instant now = Instant.now();
+        paste.setUpdatedAt(now);
+        paste.setExpiresAt(now.plus(5, ChronoUnit.MINUTES));
+        Paste saved = repo.save(paste);
+
+        syncService.broadcastEvent(cleanId, "bin_locked", java.util.Map.of(
+                "pasteId", cleanId,
+                "locked", true
+        ));
+        return saved;
+    }
+
+    @Transactional
+    public Paste removePassword(String rawId) {
+        String cleanId = sanitizeId(rawId);
+        Paste paste = getOrCreate(cleanId);
+        paste.setPasswordHash(null);
+        Instant now = Instant.now();
+        paste.setUpdatedAt(now);
+        paste.setExpiresAt(now.plus(5, ChronoUnit.MINUTES));
+        Paste saved = repo.save(paste);
+
+        syncService.broadcastEvent(cleanId, "bin_unlocked", java.util.Map.of(
+                "pasteId", cleanId,
+                "locked", false
+        ));
         return saved;
     }
 

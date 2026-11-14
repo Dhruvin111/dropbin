@@ -3,10 +3,14 @@ package com.textbin.controller;
 import com.textbin.dto.BinFileDto;
 import com.textbin.model.Paste;
 import com.textbin.service.FileStorageService;
+import com.textbin.service.PasteSecurityService;
 import com.textbin.service.PasteService;
 import com.textbin.service.PasteSyncService;
 import com.textbin.util.NetworkUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +25,7 @@ public class PasteController {
     private final PasteService pasteService;
     private final FileStorageService fileStorageService;
     private final PasteSyncService syncService;
+    private final PasteSecurityService pasteSecurityService;
 
     @Value("${server.port:8080}")
     private int serverPort;
@@ -28,10 +33,12 @@ public class PasteController {
     @Value("${app.mode:auto}")
     private String appMode;
 
-    public PasteController(PasteService pasteService, FileStorageService fileStorageService, PasteSyncService syncService) {
+    public PasteController(PasteService pasteService, FileStorageService fileStorageService,
+                           PasteSyncService syncService, PasteSecurityService pasteSecurityService) {
         this.pasteService = pasteService;
         this.fileStorageService = fileStorageService;
         this.syncService = syncService;
+        this.pasteSecurityService = pasteSecurityService;
     }
 
     // ─── Landing Page at / or /d ─────────────────────────────────────────────
@@ -87,11 +94,15 @@ public class PasteController {
     // ─── Takedown / Delete Bin Form Fallback ──────────────────────────────────
 
     @PostMapping({ "/d/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown", "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown", "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown" })
-    public String takedownFromForm(@PathVariable String id) {
+    public String takedownFromForm(@PathVariable String id, HttpServletRequest request) {
         if (pasteService.isReadOnlyKey(id) || id.startsWith("ro_")) {
             throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Cannot delete in read-only mode");
         }
         String cleanId = PasteService.sanitizeId(id);
+        Paste paste = pasteService.findById(cleanId).orElse(null);
+        if (paste != null && paste.isLocked() && !pasteSecurityService.isAuthorized(request, paste)) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Workspace is locked. Enter password first.");
+        }
         try {
             fileStorageService.deleteAllFilesForPaste(cleanId);
         } catch (Exception ignored) {}
@@ -114,6 +125,8 @@ public class PasteController {
             @PathVariable String id,
             @RequestParam(name = "mode", required = false) String mode,
             @RequestParam(name = "readonly", required = false) Boolean readonlyParam,
+            HttpServletRequest request,
+            HttpServletResponse response,
             Model model) {
         // If the ID passed is actually a secret read-only key, keep them permanently in
         // read-only mode!
@@ -124,10 +137,29 @@ public class PasteController {
         boolean isReadOnly = "readonly".equalsIgnoreCase(mode) || Boolean.TRUE.equals(readonlyParam);
 
         Paste paste = pasteService.getOrCreate(id);
+
+        if (paste.isLocked() && !pasteSecurityService.isAuthorized(request, paste)) {
+            populateLockModel(model, paste, id, false);
+            return "lock";
+        }
+
         populateModel(model, paste, isReadOnly, paste.getReadOnlyKey());
         model.addAttribute("isReadOnly", isReadOnly);
         model.addAttribute("readOnlyKey", paste.getReadOnlyKey());
         model.addAttribute("activeId", isReadOnly ? ("readonly/" + paste.getReadOnlyKey()) : paste.getId());
+        model.addAttribute("isLocked", paste.isLocked());
+
+        String authToken = "";
+        if (paste.isLocked()) {
+            authToken = pasteSecurityService.extractToken(request, paste.getId());
+            if (authToken == null || !pasteSecurityService.validateToken(authToken, paste)) {
+                authToken = pasteSecurityService.generateToken(paste);
+                boolean isSecure = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+                pasteSecurityService.setAuthCookie(response, paste, authToken, isSecure);
+            }
+        }
+        model.addAttribute("authToken", authToken);
+
         return "view";
     }
 
@@ -137,16 +169,38 @@ public class PasteController {
             "/d/r/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}",
             "/dropbin/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}",
             "/word/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}" })
-    public String viewDropbinByReadOnlyKey(@PathVariable String readOnlyKey, Model model) {
+    public String viewDropbinByReadOnlyKey(
+            @PathVariable String readOnlyKey,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Model model) {
         Paste paste = pasteService.findByReadOnlyKey(readOnlyKey)
                 .orElseThrow(() -> new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND,
                         "This read-only paste has expired or never existed."));
+
+        if (paste.isLocked() && !pasteSecurityService.isAuthorized(request, paste)) {
+            populateLockModel(model, paste, "readonly/" + readOnlyKey, true);
+            return "lock";
+        }
 
         populateModel(model, paste, true, readOnlyKey);
         model.addAttribute("isReadOnly", true);
         model.addAttribute("readOnlyKey", readOnlyKey);
         // Do NOT expose the secret edit ID to the read-only viewer!
         model.addAttribute("activeId", "readonly/" + readOnlyKey);
+        model.addAttribute("isLocked", paste.isLocked());
+
+        String authToken = "";
+        if (paste.isLocked()) {
+            authToken = pasteSecurityService.extractToken(request, paste.getId());
+            if (authToken == null || !pasteSecurityService.validateToken(authToken, paste)) {
+                authToken = pasteSecurityService.generateToken(paste);
+                boolean isSecure = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+                pasteSecurityService.setAuthCookie(response, paste, authToken, isSecure);
+            }
+        }
+        model.addAttribute("authToken", authToken);
+
         return "view";
     }
 
@@ -184,13 +238,20 @@ public class PasteController {
             "/d/r/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
             "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
             "/dropbin/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}/raw" }, produces = "text/plain;charset=UTF-8")
-    @ResponseBody
-    public String rawDropbin(@PathVariable String id) {
+    public ResponseEntity<String> rawDropbin(@PathVariable String id, HttpServletRequest request) {
         Optional<Paste> opt = pasteService.findById(id);
         if (opt.isEmpty()) {
             opt = pasteService.findByReadOnlyKey(id);
         }
-        return opt.map(Paste::getContent).orElse("");
+        if (opt.isEmpty()) {
+            return ResponseEntity.ok("");
+        }
+        Paste paste = opt.get();
+        if (paste.isLocked() && !pasteSecurityService.isAuthorized(request, paste)) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body("This workspace is password-protected. Please unlock via web browser at /d/" + paste.getId());
+        }
+        return ResponseEntity.ok(paste.getContent() != null ? paste.getContent() : "");
     }
 
     @GetMapping(value = { "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/raw", "/raw/{id:[a-zA-Z0-9_\\-]{1,64}}" }, produces = "text/plain;charset=UTF-8")
@@ -218,11 +279,22 @@ public class PasteController {
         model.addAttribute("serverPort", serverPort);
         model.addAttribute("secondsLeft", paste.secondsUntilExpiry());
         model.addAttribute("isLiveMode", isLiveEnvironment());
+        model.addAttribute("isLocked", paste.isLocked());
 
         String filePrefix = (isReadOnly && readOnlyKey != null && !readOnlyKey.isBlank()) ? ("readonly/" + readOnlyKey)
                 : null;
         List<BinFileDto> files = fileStorageService.getFilesForPaste(paste.getId(), filePrefix);
         model.addAttribute("attachedFiles", files);
+    }
+
+    private void populateLockModel(Model model, Paste paste, String targetId, boolean isReadOnly) {
+        model.addAttribute("pasteId", isReadOnly ? paste.getReadOnlyKey() : paste.getId());
+        model.addAttribute("activeId", targetId);
+        model.addAttribute("title", paste.getTitle());
+        model.addAttribute("isReadOnly", isReadOnly);
+        model.addAttribute("serverLanIp", NetworkUtil.getLocalNetworkIp());
+        model.addAttribute("serverPort", serverPort);
+        model.addAttribute("isLiveMode", isLiveEnvironment());
     }
 
     private boolean isLiveEnvironment() {

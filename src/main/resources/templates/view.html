@@ -4,8 +4,8 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title th:text="${(activeId != null ? activeId : paste.id) + ' — DropBin'}"></title>
-    <link rel="stylesheet" th:href="@{/style.css(v='2.9')}" href="/style.css?v=2.9"/>
-    <link rel="stylesheet" th:href="@{/css/style.css(v='2.9')}" href="/css/style.css?v=2.9"/>
+    <link rel="stylesheet" th:href="@{/style.css(v='3.1')}" href="/style.css?v=3.1"/>
+    <link rel="stylesheet" th:href="@{/css/style.css(v='3.1')}" href="/css/style.css?v=3.1"/>
 </head>
 <body>
 
@@ -41,6 +41,12 @@
         <div th:if="${isReadOnly}" class="peer-badge" style="border-color:#f59e0b; background:#fffbeb; color:#b45309;" title="Viewing in read-only mode. Edits and uploads are disabled.">
             <span>🔒</span>
             <span>Read-Only</span>
+        </div>
+
+        <!-- Locked Badge -->
+        <div id="headerLockedBadge" th:if="${isLocked}" class="peer-badge" style="border-color:#f59e0b; background:#fffbeb; color:#b45309;" title="Workspace is password protected">
+            <span>🔒</span>
+            <span>Protected</span>
         </div>
 
         <!-- Live Peer / Realtime status -->
@@ -139,6 +145,15 @@
             <button class="btn btn-secondary" id="btnDownload" title="Download as text file">
                 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 <span>Download</span>
+            </button>
+            <button th:if="${!isReadOnly}" class="btn btn-secondary" id="btnOpenPasswordModal" th:classappend="${isLocked} ? 'btn-locked-state' : ''" th:title="${isLocked} ? 'Manage or change password lock' : 'Set password lock'">
+                <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span id="lockBtnText" th:text="${isLocked} ? 'Locked' : 'Lock'">Lock</span>
+            </button>
+            <button th:if="${!isReadOnly}" type="button" class="btn btn-danger" id="btnRemovePassword" th:style="${isLocked} ? 'display:inline-flex;' : 'display:none;'" title="Remove password protection from this workspace">
+                <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V7a5 5 0 0 1 9.9-1"/><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/></svg>
+                <span class="btn-text-full">Remove Password</span>
+                <span class="btn-text-short">Remove</span>
             </button>
             <button th:if="${!isReadOnly}" class="btn btn-secondary" id="btnClear" title="Clear text">
                 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L20 9C20.5 9.5 20.5 10.5 20 11L11 20"/></svg>
@@ -437,6 +452,61 @@
     </div>
 </div>
 
+<!-- Password Protection Modal -->
+<div class="share-modal" id="passwordModal" th:unless="${isReadOnly}">
+    <div class="share-card" style="max-width: 440px;">
+        <div class="modal-header-custom" style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.25rem;">
+            <div style="width:42px; height:42px; border-radius:50%; background:#fef3c7; color:#d97706; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+                <h3 id="pwdModalHeading" style="margin:0 0 0.2rem; font-size:1.15rem; color:var(--text); font-weight:700;">Password Lock</h3>
+                <p id="pwdModalSubheading" style="margin:0; font-size:0.82rem; color:var(--text-muted); line-height:1.4;">Protect this workspace from unauthorized access.</p>
+            </div>
+        </div>
+
+        <div id="pwdModalError" style="display:none; background:#fee2e2; border:1px solid #fca5a5; color:#b91c1c; border-radius:var(--radius-sm); padding:0.6rem 0.8rem; font-size:0.84rem; margin-bottom:1rem;"></div>
+
+        <form id="passwordManageForm" onsubmit="handleSavePassword(event)">
+            <!-- Current password field: only shown if workspace is currently locked -->
+            <div id="groupCurrentPassword" style="margin-bottom: 0.85rem; display: none;">
+                <label style="display:block; font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:0.35rem;" for="inputCurrentPassword">Current Password</label>
+                <input type="password" id="inputCurrentPassword" class="url-text-input" placeholder="Enter current password" style="width:100%; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border); font-size:0.9rem; padding:0 0.75rem;"/>
+            </div>
+
+            <div style="margin-bottom: 0.85rem;">
+                <label id="lblNewPassword" style="display:block; font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:0.35rem;" for="inputNewPassword">New Password</label>
+                <input type="password" id="inputNewPassword" class="url-text-input" placeholder="Enter password (leave blank to unlock)" style="width:100%; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border); font-size:0.9rem; padding:0 0.75rem;"/>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display:block; font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:0.35rem;" for="inputConfirmPassword">Confirm Password</label>
+                <input type="password" id="inputConfirmPassword" class="url-text-input" placeholder="Repeat password" style="width:100%; height:40px; border-radius:var(--radius-sm); border:1px solid var(--border); font-size:0.9rem; padding:0 0.75rem;"/>
+            </div>
+
+            <!-- Dedicated Remove Password Section inside Modal (Visible when workspace is locked) -->
+            <div id="sectionModalRemove" th:style="${isLocked} ? 'display:flex;' : 'display:none;'" style="margin-bottom:1.25rem; padding:0.85rem 1rem; background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-sm); align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;">
+                <div>
+                    <strong style="display:block; font-size:0.85rem; color:#dc2626; font-weight:600;">Remove Password</strong>
+                    <span style="font-size:0.77rem; color:var(--text-muted); line-height:1.3;">Make this workspace public again</span>
+                </div>
+                <button type="button" class="btn btn-danger" id="btnModalRemovePassword" onclick="triggerRemovePassword()" style="flex-shrink:0;">
+                    <svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11V7a5 5 0 0 1 9.9-1"/><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/></svg>
+                    <span>Remove Password</span>
+                </button>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closePasswordModal()">Cancel</button>
+                <button type="submit" id="btnSubmitPassword" class="btn btn-primary">
+                    <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span id="btnSubmitPasswordText">Set Password</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Hidden fallback form for takedown -->
 <form th:if="${!isReadOnly}" id="takedownFallbackForm" method="POST" th:action="@{'/d/' + ${paste.id} + '/takedown'}" style="display:none;"></form>
 
@@ -476,7 +546,9 @@
      th:data-seconds-left="${secondsLeft}"
      th:data-server-ip="${serverLanIp}"
      th:data-server-port="${serverPort}"
-     th:data-readonly="${isReadOnly != null && isReadOnly}"></div>
+     th:data-readonly="${isReadOnly != null && isReadOnly}"
+     th:data-locked="${isLocked != null && isLocked}"
+     th:data-auth-token="${authToken != null ? authToken : ''}"></div>
 
 <!-- Core Script -->
 <script>
@@ -489,6 +561,12 @@
     const serverLanIp = meta.dataset.serverIp || 'localhost';
     const serverPort = meta.dataset.serverPort || '8080';
     const isReadOnly = meta.dataset.readonly === 'true';
+
+    // Store server authorization token in sessionStorage if provided on load
+    const serverAuthToken = meta.dataset.authToken || '';
+    if (serverAuthToken) {
+        sessionStorage.setItem('bin_token_' + pasteId, serverAuthToken);
+    }
 
     // Unique token for this browser tab session to avoid self-triggering remote banners
     const clientToken = 'tab_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
@@ -792,6 +870,195 @@
         });
     }
 
+    // ─── Password Lock Modal Handlers ─────────────────────────────────────────
+    let isWorkspaceLocked = meta.dataset.locked === 'true';
+    const passwordModal = document.getElementById('passwordModal');
+    const btnOpenPasswordModal = document.getElementById('btnOpenPasswordModal');
+    const lockBtnText = document.getElementById('lockBtnText');
+    const headerLockedBadge = document.getElementById('headerLockedBadge');
+    const groupCurrentPassword = document.getElementById('groupCurrentPassword');
+    const inputCurrentPassword = document.getElementById('inputCurrentPassword');
+    const inputNewPassword = document.getElementById('inputNewPassword');
+    const inputConfirmPassword = document.getElementById('inputConfirmPassword');
+    const pwdModalHeading = document.getElementById('pwdModalHeading');
+    const pwdModalSubheading = document.getElementById('pwdModalSubheading');
+    const btnSubmitPasswordText = document.getElementById('btnSubmitPasswordText');
+    const pwdModalError = document.getElementById('pwdModalError');
+
+    window.closePasswordModal = function() {
+        if (passwordModal) passwordModal.classList.remove('open');
+        if (pwdModalError) pwdModalError.style.display = 'none';
+        if (inputCurrentPassword) inputCurrentPassword.value = '';
+        if (inputNewPassword) inputNewPassword.value = '';
+        if (inputConfirmPassword) inputConfirmPassword.value = '';
+    };
+
+    function updateLockUI(locked) {
+        isWorkspaceLocked = locked;
+        if (lockBtnText) lockBtnText.textContent = locked ? 'Locked' : 'Lock';
+        if (btnOpenPasswordModal) {
+            btnOpenPasswordModal.title = locked ? 'Manage or change password' : 'Set password lock';
+            if (locked) {
+                btnOpenPasswordModal.classList.add('btn-locked-state');
+            } else {
+                btnOpenPasswordModal.classList.remove('btn-locked-state');
+            }
+        }
+        if (headerLockedBadge) {
+            headerLockedBadge.style.display = locked ? 'inline-flex' : 'none';
+        }
+        const btnToolbarRemove = document.getElementById('btnRemovePassword');
+        if (btnToolbarRemove) {
+            btnToolbarRemove.style.display = locked ? 'inline-flex' : 'none';
+        }
+        const sectionModalRemove = document.getElementById('sectionModalRemove');
+        if (sectionModalRemove) {
+            sectionModalRemove.style.display = locked ? 'flex' : 'none';
+        }
+    }
+
+    window.triggerRemovePassword = async function() {
+        if (!confirm('Remove password protection from this workspace? Anyone with the link will be able to access it.')) {
+            return;
+        }
+
+        const btnToolbar = document.getElementById('btnRemovePassword');
+        const btnModal = document.getElementById('btnModalRemovePassword');
+        if (btnToolbar) btnToolbar.disabled = true;
+        if (btnModal) btnModal.disabled = true;
+
+        try {
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['X-Bin-Token'] = token;
+
+            const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}/password`, {
+                method: 'DELETE',
+                headers: headers,
+                credentials: 'include'
+            });
+            const data = await resp.json().catch(() => ({}));
+
+            if (resp.ok && data.success) {
+                sessionStorage.removeItem('bin_token_' + pasteId);
+                updateLockUI(false);
+                closePasswordModal();
+                showToast(data.message || 'Password lock removed successfully.');
+            } else {
+                alert(data.error || 'Failed to remove password lock.');
+            }
+        } catch (err) {
+            alert('Could not connect to server. Please try again.');
+        } finally {
+            if (btnToolbar) btnToolbar.disabled = false;
+            if (btnModal) btnModal.disabled = false;
+        }
+    };
+
+    const btnToolbarRemove = document.getElementById('btnRemovePassword');
+    if (btnToolbarRemove) {
+        btnToolbarRemove.addEventListener('click', triggerRemovePassword);
+    }
+
+    if (btnOpenPasswordModal && passwordModal) {
+        btnOpenPasswordModal.addEventListener('click', () => {
+            if (pwdModalError) pwdModalError.style.display = 'none';
+            if (groupCurrentPassword) {
+                groupCurrentPassword.style.display = isWorkspaceLocked ? 'block' : 'none';
+            }
+            const sectionModalRemove = document.getElementById('sectionModalRemove');
+            if (sectionModalRemove) {
+                sectionModalRemove.style.display = isWorkspaceLocked ? 'flex' : 'none';
+            }
+            if (pwdModalHeading) {
+                pwdModalHeading.textContent = isWorkspaceLocked ? 'Manage Password Lock' : 'Lock Workspace';
+            }
+            if (pwdModalSubheading) {
+                pwdModalSubheading.textContent = isWorkspaceLocked
+                    ? 'Enter current password to change or clear the workspace lock.'
+                    : 'Set a password to protect this workspace from unauthorized access.';
+            }
+            if (btnSubmitPasswordText) {
+                btnSubmitPasswordText.textContent = isWorkspaceLocked ? 'Update Lock' : 'Set Password';
+            }
+            passwordModal.classList.add('open');
+            setTimeout(() => {
+                const firstInput = isWorkspaceLocked ? inputCurrentPassword : inputNewPassword;
+                if (firstInput) firstInput.focus();
+            }, 100);
+        });
+    }
+
+    if (passwordModal) {
+        passwordModal.addEventListener('click', (e) => {
+            if (e.target === passwordModal) closePasswordModal();
+        });
+    }
+
+    window.handleSavePassword = async function(event) {
+        event.preventDefault();
+        const currentPass = inputCurrentPassword ? inputCurrentPassword.value : '';
+        const newPass = inputNewPassword ? inputNewPassword.value : '';
+        const confirmPass = inputConfirmPassword ? inputConfirmPassword.value : '';
+
+        if (newPass && newPass !== confirmPass) {
+            if (pwdModalError) {
+                pwdModalError.textContent = 'New passwords do not match.';
+                pwdModalError.style.display = 'block';
+            }
+            return;
+        }
+
+        if (newPass && newPass.length < 3) {
+            if (pwdModalError) {
+                pwdModalError.textContent = 'Password must be at least 3 characters.';
+                pwdModalError.style.display = 'block';
+            }
+            return;
+        }
+
+        const submitBtn = document.getElementById('btnSubmitPassword');
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['X-Bin-Token'] = token;
+
+            const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}/password`, {
+                method: 'POST',
+                headers: headers,
+                credentials: 'include',
+                body: JSON.stringify({
+                    currentPassword: currentPass,
+                    newPassword: newPass
+                })
+            });
+
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data.success) {
+                if (data.token) {
+                    sessionStorage.setItem('bin_token_' + pasteId, data.token);
+                }
+                updateLockUI(data.locked);
+                closePasswordModal();
+                showToast(data.message || (data.locked ? 'Workspace is now password-protected.' : 'Password lock removed.'));
+            } else {
+                if (pwdModalError) {
+                    pwdModalError.textContent = data.error || 'Failed to update password.';
+                    pwdModalError.style.display = 'block';
+                }
+            }
+        } catch (err) {
+            if (pwdModalError) {
+                pwdModalError.textContent = 'Network error. Please try again.';
+                pwdModalError.style.display = 'block';
+            }
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    };
+
     // ─── Takedown Modal Handlers ──────────────────────────────────────────────
     const btnOpenTakedown = document.getElementById('btnOpenTakedown');
     const takedownModal = document.getElementById('takedownModal');
@@ -1030,11 +1297,30 @@
                 clientToken: clientToken
             };
 
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) {
+                headers['X-Bin-Token'] = token;
+            }
+
             const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
+                credentials: 'include',
                 body: JSON.stringify(payload)
             });
+
+            if (resp.status === 401) {
+                isSaving = false;
+                if (debounceTimer) clearTimeout(debounceTimer);
+                if (textarea) textarea.readOnly = true;
+                setStatus('saving', 'Workspace locked');
+                showToast('This workspace is locked. Redirecting to unlock screen...');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+                return;
+            }
 
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
 
@@ -1187,6 +1473,9 @@
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', `/api/d/${encodeURIComponent(pasteId)}/files`, true);
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            if (token) xhr.setRequestHeader('X-Bin-Token', token);
+            xhr.withCredentials = true;
 
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
@@ -1336,8 +1625,14 @@
         }
 
         try {
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = {};
+            if (token) headers['X-Bin-Token'] = token;
+
             const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}/files/${encodeURIComponent(fileId)}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: headers,
+                credentials: 'include'
             });
 
             if (resp.ok || resp.status === 204) {
@@ -1487,6 +1782,31 @@
             triggerPeerTakedownNotice();
         });
 
+        eventSource.addEventListener('bin_locked', async () => {
+            updateLockUI(true);
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = {};
+            if (token) headers['X-Bin-Token'] = token;
+            const statusUrl = (isReadOnly && readOnlyKey)
+                ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}/status`
+                : `/api/d/${encodeURIComponent(pasteId)}/status`;
+            try {
+                const resp = await fetch(statusUrl, { headers, credentials: 'include' });
+                if (resp.status === 401) {
+                    if (textarea) textarea.readOnly = true;
+                    showToast('Workspace has been locked. Redirecting to unlock screen...');
+                    setTimeout(() => window.location.reload(), 800);
+                    return;
+                }
+            } catch (ignored) {}
+            showToast('This workspace is now password-protected.');
+        });
+
+        eventSource.addEventListener('bin_unlocked', () => {
+            updateLockUI(false);
+            showToast('Password lock has been removed.');
+        });
+
         eventSource.addEventListener('files_cleared', (e) => {
             if (filesGrid) {
                 const cards = filesGrid.querySelectorAll('.file-card');
@@ -1512,18 +1832,31 @@
             const statusUrl = (isReadOnly && readOnlyKey)
                 ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}/status`
                 : `/api/d/${encodeURIComponent(pasteId)}/status`;
-            const resp = await fetch(statusUrl);
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = {};
+            if (token) headers['X-Bin-Token'] = token;
+
+            const resp = await fetch(statusUrl, { headers, credentials: 'include' });
             if (resp.status === 404) {
                 triggerPeerTakedownNotice();
                 return;
             }
+            if (resp.status === 401) {
+                // Bin was locked while open and current session has no valid authorization
+                if (textarea) textarea.readOnly = true;
+                window.location.reload();
+                return;
+            }
             if (resp.ok) {
                 const status = await resp.json();
+                if (status.locked !== undefined && status.locked !== isWorkspaceLocked) {
+                    updateLockUI(status.locked);
+                }
                 if (status.version && status.version > currentVersion) {
                     const fullUrl = (isReadOnly && readOnlyKey)
                         ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}`
                         : `/api/d/${encodeURIComponent(pasteId)}`;
-                    const fullResp = await fetch(fullUrl);
+                    const fullResp = await fetch(fullUrl, { headers, credentials: 'include' });
                     if (fullResp.ok) {
                         const fullData = await fullResp.json();
                         handleIncomingTextUpdate(fullData);
@@ -1539,7 +1872,16 @@
             const filesUrl = (isReadOnly && readOnlyKey)
                 ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}/files`
                 : `/api/d/${encodeURIComponent(pasteId)}/files`;
-            const resp = await fetch(filesUrl);
+            const token = sessionStorage.getItem('bin_token_' + pasteId);
+            const headers = {};
+            if (token) headers['X-Bin-Token'] = token;
+
+            const resp = await fetch(filesUrl, { headers, credentials: 'include' });
+            if (resp.status === 401) {
+                if (textarea) textarea.readOnly = true;
+                window.location.reload();
+                return;
+            }
             if (resp.ok) {
                 const fileList = await resp.json();
                 const currentIds = new Set(fileList.map(f => f.id));

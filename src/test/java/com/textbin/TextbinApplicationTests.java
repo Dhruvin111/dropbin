@@ -294,6 +294,136 @@ class TextbinApplicationTests {
                 .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"));
     }
 
+    @Test
+    void testPasswordLockAndUnlock() throws Exception {
+        String testId = "test-lock-" + System.currentTimeMillis();
+        pasteService.getOrCreate(testId);
+        pasteService.saveOrUpdate(testId, "Secret data inside locked pad", "Private Pad", "plaintext", "token1");
+
+        // 1. Set password on the workspace
+        mockMvc.perform(post("/api/d/" + testId + "/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("newPassword", "correctHorseBattery"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locked").value(true));
+
+        // 2. Unauthenticated GET /d/{id} must render "lock" view instead of "view"
+        mockMvc.perform(get("/d/" + testId))
+                .andExpect(status().isOk())
+                .andExpect(view().name("lock"));
+
+        // 2b. Read-only link must ALSO be locked! Unauthenticated GET /d/readonly/{key} renders "lock"
+        var pasteEntity = pasteRepository.findById(testId).orElseThrow();
+        String roKey = pasteEntity.getReadOnlyKey();
+        mockMvc.perform(get("/d/readonly/" + roKey))
+                .andExpect(status().isOk())
+                .andExpect(view().name("lock"))
+                .andExpect(model().attribute("isReadOnly", true))
+                .andExpect(model().attribute("pasteId", roKey)); // Must not leak the edit ID!
+
+        // 3. Unauthenticated GET /d/{id}/raw must return 401 Unauthorized
+        mockMvc.perform(get("/d/" + testId + "/raw"))
+                .andExpect(status().isUnauthorized());
+
+        // 4. Unauthenticated POST /api/d/{id} (save) must return 401 Unauthorized
+        mockMvc.perform(post("/api/d/" + testId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SavePasteRequest("Hacked content", "Title", "plaintext", "attacker"))))
+                .andExpect(status().isUnauthorized());
+
+        // 4b. Unauthenticated GET /api/d/{id}/status must return 401 Unauthorized
+        mockMvc.perform(get("/api/d/" + testId + "/status"))
+                .andExpect(status().isUnauthorized());
+
+        // 5. Wrong password unlock returns 401
+        mockMvc.perform(post("/api/d/" + testId + "/unlock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("password", "wrongPassword"))))
+                .andExpect(status().isUnauthorized());
+
+        // 6. Correct password unlock returns 200 OK with token and Set-Cookie
+        var unlockResult = mockMvc.perform(post("/api/d/" + testId + "/unlock")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("password", "correctHorseBattery"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unlocked").value(true))
+                .andExpect(jsonPath("$.token").exists())
+                .andReturn();
+
+        jakarta.servlet.http.Cookie authCookie = unlockResult.getResponse().getCookie("bin_auth_" + testId);
+        org.junit.jupiter.api.Assertions.assertNotNull(authCookie, "Expected auth cookie bin_auth_" + testId);
+
+        // 7. Accessing with the auth cookie renders "view" template
+        mockMvc.perform(get("/d/" + testId).cookie(authCookie))
+                .andExpect(status().isOk())
+                .andExpect(view().name("view"))
+                .andExpect(model().attribute("isLocked", true));
+
+        // 7b. Accessing read-only URL with auth cookie renders "view" in read-only mode without exposing edit ID
+        mockMvc.perform(get("/d/readonly/" + roKey).cookie(authCookie))
+                .andExpect(status().isOk())
+                .andExpect(view().name("view"))
+                .andExpect(model().attribute("isReadOnly", true))
+                .andExpect(model().attribute("activeId", "readonly/" + roKey));
+
+        // 7c. Read-only token cannot change or remove password even with auth cookie -> 403 Forbidden
+        mockMvc.perform(post("/api/d/" + roKey + "/password")
+                        .cookie(authCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("newPassword", "hack"))))
+                .andExpect(status().isForbidden());
+
+        // 7d. Status endpoint must report locked=true when authorized on a locked pad
+        mockMvc.perform(get("/api/d/" + testId + "/status").cookie(authCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locked").value(true));
+
+        // 8. Accessing raw endpoint with auth cookie returns secret content
+        mockMvc.perform(get("/d/" + testId + "/raw").cookie(authCookie))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Secret data inside locked pad"));
+
+        // 8b. Authenticated save using X-Bin-Token header succeeds without cookie
+        String rawToken = (String) objectMapper.readValue(unlockResult.getResponse().getContentAsString(), java.util.Map.class).get("token");
+        mockMvc.perform(post("/api/d/" + testId)
+                        .header("X-Bin-Token", rawToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SavePasteRequest("Updated securely", "Title", "plaintext", "tokenUser"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/d/" + testId + "/raw").cookie(authCookie))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Updated securely"));
+
+        // 9. Remove password via dedicated DELETE endpoint
+        // 9a. Unauthorized attempt without cookie returns 401
+        mockMvc.perform(delete("/api/d/" + testId + "/password"))
+                .andExpect(status().isUnauthorized());
+
+        // 9b. Read-only token cannot delete password -> 403 Forbidden
+        mockMvc.perform(delete("/api/d/" + roKey + "/password").cookie(authCookie))
+                .andExpect(status().isForbidden());
+
+        // 9c. Authorized DELETE removes the password
+        mockMvc.perform(delete("/api/d/" + testId + "/password").cookie(authCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locked").value(false));
+
+        // 10. Once unlocked, accessing without cookie renders "view" template again
+        mockMvc.perform(get("/d/" + testId))
+                .andExpect(status().isOk())
+                .andExpect(view().name("view"))
+                .andExpect(model().attribute("isLocked", false));
+
+        // 10b. Status endpoint reports locked=false after password removed
+        mockMvc.perform(get("/api/d/" + testId + "/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locked").value(false));
+
+        // Cleanup
+        pasteRepository.deleteById(testId);
+    }
+
     private static byte[] createValidDocxBytes() {
         try (java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
              java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(baos)) {

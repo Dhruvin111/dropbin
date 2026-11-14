@@ -10,11 +10,17 @@ public class PasteResponse {
     private Long version;
     private Instant updatedAt;
     private String clientToken;
+    private boolean locked;
 
     public PasteResponse() {}
 
     public PasteResponse(String id, String content, String title, String syntaxLanguage,
                          Long version, Instant updatedAt, String clientToken) {
+        this(id, content, title, syntaxLanguage, version, updatedAt, clientToken, false);
+    }
+
+    public PasteResponse(String id, String content, String title, String syntaxLanguage,
+                         Long version, Instant updatedAt, String clientToken, boolean locked) {
         this.id = id;
         this.content = content;
         this.title = title;
@@ -22,6 +28,7 @@ public class PasteResponse {
         this.version = version;
         this.updatedAt = updatedAt;
         this.clientToken = clientToken;
+        this.locked = locked;
     }
 
     public String getId() {
@@ -78,5 +85,13 @@ public class PasteResponse {
 
     public void setClientToken(String clientToken) {
         this.clientToken = clientToken;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
     }
 }

@@ -7,14 +7,20 @@ public class PasteStatusDto {
     private Long version;
     private Instant updatedAt;
     private int contentLength;
+    private boolean locked;
 
     public PasteStatusDto() {}
 
     public PasteStatusDto(String id, Long version, Instant updatedAt, int contentLength) {
+        this(id, version, updatedAt, contentLength, false);
+    }
+
+    public PasteStatusDto(String id, Long version, Instant updatedAt, int contentLength, boolean locked) {
         this.id = id;
         this.version = version;
         this.updatedAt = updatedAt;
         this.contentLength = contentLength;
+        this.locked = locked;
     }
 
     public String getId() {
@@ -47,5 +53,13 @@ public class PasteStatusDto {
 
     public void setContentLength(int contentLength) {
         this.contentLength = contentLength;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
     }
 }

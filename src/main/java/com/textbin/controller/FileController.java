@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.textbin.model.Paste;
+import com.textbin.service.PasteSecurityService;
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.net.MalformedURLException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -29,10 +33,14 @@ public class FileController {
 
     private final FileStorageService fileStorageService;
     private final PasteService pasteService;
+    private final PasteSecurityService pasteSecurityService;
 
-    public FileController(FileStorageService fileStorageService, com.textbin.service.PasteService pasteService) {
+    public FileController(FileStorageService fileStorageService,
+                          PasteService pasteService,
+                          PasteSecurityService pasteSecurityService) {
         this.fileStorageService = fileStorageService;
         this.pasteService = pasteService;
+        this.pasteSecurityService = pasteSecurityService;
     }
 
     // ─── 1. Upload File (up to 10MB; Image, PDF, Word) ───────────────────────
@@ -46,11 +54,17 @@ public class FileController {
     )
     public ResponseEntity<?> uploadFile(
             @PathVariable String pasteId,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request
     ) {
         if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Cannot upload files to a read-only bin."));
+        }
+        Optional<Paste> opt = pasteService.findById(pasteId);
+        if (opt.isPresent() && opt.get().isLocked() && !pasteSecurityService.isAuthorized(request, opt.get())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Workspace is locked. Enter password to upload files."));
         }
         try {
             BinFileDto dto = fileStorageService.storeFile(pasteId, file);
@@ -71,11 +85,17 @@ public class FileController {
             "/api/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
     })
-    public ResponseEntity<List<BinFileDto>> listFiles(@PathVariable String pasteId) {
+    public ResponseEntity<List<BinFileDto>> listFiles(@PathVariable String pasteId, HttpServletRequest request) {
         boolean isRo = pasteService.isReadOnlyKey(pasteId);
         String resolvedId = isRo
                 ? pasteService.findByReadOnlyKey(pasteId).map(com.textbin.model.Paste::getId).orElse(pasteId)
                 : pasteId;
+
+        Optional<Paste> opt = pasteService.findById(resolvedId);
+        if (opt.isPresent() && opt.get().isLocked() && !pasteSecurityService.isAuthorized(request, opt.get())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
         String routePrefix = isRo ? ("readonly/" + pasteId) : null;
         List<BinFileDto> files = fileStorageService.getFilesForPaste(resolvedId, routePrefix);
         return ResponseEntity.ok(files);
@@ -89,11 +109,17 @@ public class FileController {
     })
     public ResponseEntity<?> deleteFile(
             @PathVariable String pasteId,
-            @PathVariable String fileId
+            @PathVariable String fileId,
+            HttpServletRequest request
     ) {
         if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Cannot delete files from a read-only bin."));
+        }
+        Optional<Paste> opt = pasteService.findById(pasteId);
+        if (opt.isPresent() && opt.get().isLocked() && !pasteSecurityService.isAuthorized(request, opt.get())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Workspace is locked. Enter password first."));
         }
         boolean deleted = fileStorageService.deleteFile(pasteId, fileId);
         if (deleted) {
@@ -108,10 +134,15 @@ public class FileController {
             "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
     })
-    public ResponseEntity<?> deleteAllFiles(@PathVariable String pasteId) {
+    public ResponseEntity<?> deleteAllFiles(@PathVariable String pasteId, HttpServletRequest request) {
         if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Cannot delete files from a read-only bin."));
+        }
+        Optional<Paste> opt = pasteService.findById(pasteId);
+        if (opt.isPresent() && opt.get().isLocked() && !pasteSecurityService.isAuthorized(request, opt.get())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Workspace is locked. Enter password first."));
         }
         fileStorageService.deleteAllFilesForPaste(pasteId);
         return ResponseEntity.noContent().build();
@@ -128,9 +159,10 @@ public class FileController {
     })
     public ResponseEntity<Resource> viewFile(
             @PathVariable String pasteId,
-            @PathVariable String fileId
+            @PathVariable String fileId,
+            HttpServletRequest request
     ) {
-        return serveFile(pasteId, fileId, false);
+        return serveFile(pasteId, fileId, false, request);
     }
 
     // ─── 5. Download File Attachment (Word, PDF, Images) ──────────────────────
@@ -144,9 +176,10 @@ public class FileController {
     })
     public ResponseEntity<Resource> downloadFile(
             @PathVariable String pasteId,
-            @PathVariable String fileId
+            @PathVariable String fileId,
+            HttpServletRequest request
     ) {
-        return serveFile(pasteId, fileId, true);
+        return serveFile(pasteId, fileId, true, request);
     }
 
     // ─── 6. Friendly File URL with original filename ─────────────────────────
@@ -162,15 +195,22 @@ public class FileController {
             @PathVariable String pasteId,
             @PathVariable String fileId,
             @PathVariable String filename,
-            @RequestParam(value = "download", defaultValue = "false") boolean download
+            @RequestParam(value = "download", defaultValue = "false") boolean download,
+            HttpServletRequest request
     ) {
-        return serveFile(pasteId, fileId, download);
+        return serveFile(pasteId, fileId, download, request);
     }
 
-    private ResponseEntity<Resource> serveFile(String pasteId, String fileId, boolean asAttachment) {
+    private ResponseEntity<Resource> serveFile(String pasteId, String fileId, boolean asAttachment, HttpServletRequest request) {
         String resolvedId = pasteService.findByReadOnlyKey(pasteId)
                 .map(com.textbin.model.Paste::getId)
                 .orElse(pasteId);
+
+        Optional<Paste> optPaste = pasteService.findById(resolvedId);
+        if (optPaste.isPresent() && optPaste.get().isLocked() && !pasteSecurityService.isAuthorized(request, optPaste.get())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
         Optional<BinFile> opt = fileStorageService.findById(fileId);
         if (opt.isEmpty()) {
             return ResponseEntity.notFound().build();

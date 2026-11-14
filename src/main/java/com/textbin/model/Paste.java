@@ -42,6 +42,9 @@ public class Paste {
     @Column(name = "read_only_key", length = 64)
     private String readOnlyKey;
 
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
+
     // ─── Constructors ────────────────────────────────────────────────────────
 
     public Paste() {}
@@ -128,4 +131,15 @@ public class Paste {
 
     public String getReadOnlyKey() { return readOnlyKey; }
     public void setReadOnlyKey(String readOnlyKey) { this.readOnlyKey = readOnlyKey; }
+
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+
+    public boolean isLocked() {
+        return passwordHash != null && !passwordHash.isBlank();
+    }
+
+    public boolean verifyPassword(String candidate) {
+        return isLocked() && com.textbin.util.PasswordUtil.verify(candidate, this.passwordHash);
+    }
 }
