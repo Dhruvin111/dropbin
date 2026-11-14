@@ -23,6 +23,7 @@ public class FileStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
     public static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024; // 10MB
+    public static final int MAX_FILES_PER_BIN = 5;
 
     private final BinFileRepository fileRepo;
     private final PasteService pasteService;
@@ -55,6 +56,11 @@ public class FileStorageService {
 
         // Ensure paste exists or is created
         pasteService.getOrCreate(pasteId);
+
+        long currentCount = fileRepo.countByPasteId(pasteId);
+        if (currentCount >= MAX_FILES_PER_BIN) {
+            throw new IllegalStateException("Maximum limit of " + MAX_FILES_PER_BIN + " files reached for this workspace. Please delete an existing file before uploading a new one.");
+        }
 
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Cannot upload an empty file.");
@@ -200,6 +206,60 @@ public class FileStorageService {
         if (!expiredFiles.isEmpty()) {
             fileRepo.deleteFilesForExpiredPastes(now);
             log.info("Cleanup: deleted {} file(s) and folders from disk for expired pastes", expiredFiles.size());
+        }
+    }
+
+    /**
+     * Purges all physical files and database records for a specific paste when taken down.
+     */
+    @Transactional
+    public void deleteAllFilesForPaste(String rawPasteId) {
+        String pasteId = PasteService.sanitizeId(rawPasteId);
+        try {
+            List<BinFile> files = fileRepo.findByPasteIdOrderByUploadedAtDesc(pasteId);
+            for (BinFile bf : files) {
+                try {
+                    deletePhysicalFileAndEmptyParents(Paths.get(bf.getStoragePath()));
+                } catch (Exception e) {
+                    log.warn("Could not delete physical file {}: {}", bf.getStoragePath(), e.getMessage());
+                }
+            }
+
+            // Clean up entire folder for this paste
+            Path pasteDir = this.rootStoragePath.resolve(pasteId);
+            if (Files.exists(pasteDir)) {
+                try {
+                    org.springframework.util.FileSystemUtils.deleteRecursively(pasteDir);
+                } catch (Exception ex) {
+                    log.warn("Failed deleting paste directory for {}: {}", pasteId, ex.getMessage());
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Error during file cleanup for paste {}: {}", pasteId, ex.getMessage());
+        }
+
+        try {
+            int deletedCount = fileRepo.deleteByPasteId(pasteId);
+            log.info("Deleted {} file record(s) for paste {}", deletedCount, pasteId);
+        } catch (Exception ex) {
+            log.warn("Query delete failed, falling back to deleteAll: {}", ex.getMessage());
+            try {
+                List<BinFile> remaining = fileRepo.findByPasteIdOrderByUploadedAtDesc(pasteId);
+                if (!remaining.isEmpty()) {
+                    fileRepo.deleteAll(remaining);
+                }
+            } catch (Exception ex2) {
+                log.error("Error deleting DB records for paste files {}: {}", pasteId, ex2.getMessage());
+            }
+        }
+
+        // Broadcast SSE event so all collaborators' file cards clear immediately
+        try {
+            Map<String, String> payload = new HashMap<>();
+            payload.put("pasteId", pasteId);
+            syncService.broadcastEvent(pasteId, "files_cleared", payload);
+        } catch (Exception ex) {
+            log.warn("Failed to broadcast files_cleared event for {}: {}", pasteId, ex.getMessage());
         }
     }
 

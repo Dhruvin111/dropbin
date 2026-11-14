@@ -4,6 +4,7 @@ import com.textbin.dto.PasteResponse;
 import com.textbin.dto.PasteStatusDto;
 import com.textbin.dto.SavePasteRequest;
 import com.textbin.model.Paste;
+import com.textbin.service.FileStorageService;
 import com.textbin.service.PasteService;
 import com.textbin.service.PasteSyncService;
 import com.textbin.service.QrCodeService;
@@ -27,6 +28,7 @@ public class PasteApiController {
     private final PasteService pasteService;
     private final PasteSyncService syncService;
     private final QrCodeService qrCodeService;
+    private final FileStorageService fileStorageService;
 
     @Value("${server.port:8080}")
     private int serverPort;
@@ -34,10 +36,11 @@ public class PasteApiController {
     @Value("${app.base-url:}")
     private String configuredBaseUrl;
 
-    public PasteApiController(PasteService pasteService, PasteSyncService syncService, QrCodeService qrCodeService) {
+    public PasteApiController(PasteService pasteService, PasteSyncService syncService, QrCodeService qrCodeService, FileStorageService fileStorageService) {
         this.pasteService = pasteService;
         this.syncService = syncService;
         this.qrCodeService = qrCodeService;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
@@ -72,6 +75,64 @@ public class PasteApiController {
                 request.getClientToken()
         );
         return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * Takedown / Delete bin immediately (wiping text and all attached files).
+     */
+    @DeleteMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}"})
+    public ResponseEntity<?> takedownPasteByDelete(@PathVariable String id) {
+        return processTakedown(id);
+    }
+
+    /**
+     * Fallback endpoint for environments where DELETE is restricted or converted to POST.
+     */
+    @PostMapping({"/{id:[a-zA-Z0-9_\\-\\.]+}/takedown", "/readonly/{id:[a-zA-Z0-9_\\-\\.]+}/takedown"})
+    public ResponseEntity<?> takedownPasteByPost(@PathVariable String id) {
+        return processTakedown(id);
+    }
+
+    private ResponseEntity<?> processTakedown(String id) {
+        if (pasteService.isReadOnlyKey(id) || id.startsWith("ro_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(java.util.Map.of("error", "Cannot take down a bin in read-only mode."));
+        }
+
+        String cleanId = PasteService.sanitizeId(id);
+
+        // 1. Delete all attached files from disk and DB
+        try {
+            fileStorageService.deleteAllFilesForPaste(cleanId);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PasteApiController.class)
+                    .warn("Non-fatal error deleting files during takedown for {}: {}", cleanId, e.getMessage());
+        }
+
+        // 2. Broadcast bin_deleted event to notify all connected peers
+        try {
+            syncService.broadcastEvent(cleanId, "bin_deleted", java.util.Map.of(
+                    "pasteId", cleanId,
+                    "message", "This bin has been taken down and deleted."
+            ));
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PasteApiController.class)
+                    .warn("Non-fatal error broadcasting takedown for {}: {}", cleanId, e.getMessage());
+        }
+
+        // 3. Delete the paste from database
+        try {
+            pasteService.deletePaste(cleanId);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PasteApiController.class)
+                    .warn("Non-fatal error deleting paste for {}: {}", cleanId, e.getMessage());
+        }
+
+        return ResponseEntity.ok(java.util.Map.of(
+                "success", true,
+                "pasteId", cleanId,
+                "message", "Bin taken down successfully"
+        ));
     }
 
     /**

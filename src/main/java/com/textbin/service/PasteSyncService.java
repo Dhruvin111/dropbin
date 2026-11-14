@@ -92,4 +92,18 @@ public class PasteSyncService {
             }
         }
     }
+
+    /**
+     * Closes and completes all active SSE streams for a paste upon takedown.
+     */
+    public void closeEmitters(String pasteId) {
+        List<SseEmitter> list = emitters.remove(pasteId);
+        if (list != null) {
+            for (SseEmitter emitter : list) {
+                try {
+                    emitter.complete();
+                } catch (Exception ignored) {}
+            }
+        }
+    }
 }

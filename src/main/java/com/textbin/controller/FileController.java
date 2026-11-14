@@ -51,7 +51,7 @@ public class FileController {
         try {
             BinFileDto dto = fileStorageService.storeFile(pasteId, file);
             return ResponseEntity.status(HttpStatus.CREATED).body(dto);
-        } catch (IllegalArgumentException | SecurityException e) {
+        } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -93,6 +93,20 @@ public class FileController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "File not found or already deleted"));
+    }
+
+    // ─── 3b. Delete All Files for Bin ──────────────────────────────────────────
+    @DeleteMapping({
+            "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files",
+            "/api/pastes/{pasteId:[a-zA-Z0-9_\\-\\.]+}/files"
+    })
+    public ResponseEntity<?> deleteAllFiles(@PathVariable String pasteId) {
+        if (pasteService.isReadOnlyKey(pasteId) || pasteId.startsWith("ro_")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Cannot delete files from a read-only bin."));
+        }
+        fileStorageService.deleteAllFilesForPaste(pasteId);
+        return ResponseEntity.noContent().build();
     }
 
     // ─── 4. View File Inline (Images, PDF) ────────────────────────────────────

@@ -4,6 +4,7 @@ import com.textbin.dto.BinFileDto;
 import com.textbin.model.Paste;
 import com.textbin.service.FileStorageService;
 import com.textbin.service.PasteService;
+import com.textbin.service.PasteSyncService;
 import com.textbin.util.NetworkUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -19,6 +20,7 @@ public class PasteController {
 
     private final PasteService pasteService;
     private final FileStorageService fileStorageService;
+    private final PasteSyncService syncService;
 
     @Value("${server.port:8080}")
     private int serverPort;
@@ -26,9 +28,10 @@ public class PasteController {
     @Value("${app.mode:auto}")
     private String appMode;
 
-    public PasteController(PasteService pasteService, FileStorageService fileStorageService) {
+    public PasteController(PasteService pasteService, FileStorageService fileStorageService, PasteSyncService syncService) {
         this.pasteService = pasteService;
         this.fileStorageService = fileStorageService;
+        this.syncService = syncService;
     }
 
     // ─── Landing Page at /dropbin ─────────────────────────────────────────────
@@ -80,6 +83,26 @@ public class PasteController {
         }
 
         return "redirect:/dropbin/" + targetId;
+    }
+
+    // ─── Takedown / Delete Bin Form Fallback ──────────────────────────────────
+
+    @PostMapping({ "/dropbin/{id:[a-zA-Z0-9_\\-\\.]+}/takedown", "/word/{id:[a-zA-Z0-9_\\-\\.]+}/takedown" })
+    public String takedownFromForm(@PathVariable String id) {
+        if (pasteService.isReadOnlyKey(id) || id.startsWith("ro_")) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Cannot delete in read-only mode");
+        }
+        String cleanId = PasteService.sanitizeId(id);
+        try {
+            fileStorageService.deleteAllFilesForPaste(cleanId);
+        } catch (Exception ignored) {}
+        try {
+            syncService.broadcastEvent(cleanId, "bin_deleted", java.util.Map.of("pasteId", cleanId));
+        } catch (Exception ignored) {}
+        try {
+            pasteService.deletePaste(cleanId);
+        } catch (Exception ignored) {}
+        return "redirect:/dropbin?deleted=" + cleanId;
     }
 
     // ─── Pad View / Edit: Primary route is /dropbin/{id} ─────────────────────

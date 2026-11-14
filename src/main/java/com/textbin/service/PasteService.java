@@ -149,6 +149,16 @@ public class PasteService {
         });
     }
 
+    @Transactional
+    public boolean deletePaste(String rawId) {
+        String cleanId = sanitizeId(rawId);
+        if (repo.existsById(cleanId)) {
+            repo.deleteById(cleanId);
+            return true;
+        }
+        return false;
+    }
+
     @Transactional(readOnly = true)
     public long countActive() {
         return repo.countActivePastes(Instant.now());
