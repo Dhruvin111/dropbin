@@ -11,14 +11,14 @@
 
 <header class="site-header index-header">
     <div class="header-left">
-        <a href="/dropbin" class="logo">
+        <a href="/" class="logo">
             <span>📦 DropBin</span>
             <span class="logo-badge">Live</span>
         </a>
     </div>
 
     <div class="header-right">
-        <a href="/dropbin/new" class="btn btn-primary">
+        <a href="/d/new" class="btn btn-primary">
             <svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>New Bin</span>
         </a>
@@ -73,7 +73,7 @@
                     <span class="url-label-hint">Letters, numbers, dashes</span>
                 </div>
                 <div class="url-input-wrapper">
-                    <span class="url-prefix" id="urlPrefix">/dropbin/</span>
+                    <span class="url-prefix" id="urlPrefix">/d/</span>
                     <input type="text" id="customUrlInput" class="url-text-input"
                            placeholder="e.g. notes, standup, sprint-1"
                            required pattern="[a-zA-Z0-9_\-]{1,64}" maxlength="64"
@@ -118,7 +118,7 @@
                     Need an auto-generated private link?
                 </span>
                 <div style="display:flex; gap:0.5rem;">
-                    <a href="/dropbin/new" class="btn btn-secondary">
+                    <a href="/d/new" class="btn btn-secondary">
                         <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/><path d="M12 12h.01"/></svg>
                         <span>Random Bin</span>
                     </a>
@@ -143,7 +143,7 @@
             <div class="tip-card-body">
                 <div class="lan-tip-code-box">
                     <span class="lan-tip-code">
-                        <span id="tipOriginDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort : 'http://localhost:8080'}">http://localhost:8080</span>/dropbin/<span style="color:#d97706; font-weight:700;">{name}</span>
+                        <span id="tipOriginDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort : 'http://localhost:8080'}">http://localhost:8080</span>/d/<span style="color:#d97706; font-weight:700;">{name}</span>
                     </span>
                     <button type="button" class="btn-copy-format" id="btnCopyFormat" onclick="copyFormatUrl()" title="Copy URL format">
                         <svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -151,7 +151,7 @@
                     </button>
                 </div>
                 <p style="margin-top:0.6rem; font-size:0.82rem; color:var(--text-dim);">
-                    Try example: <a id="tipExampleLink" th:href="@{'/dropbin/abc'}" style="color:var(--primary);text-decoration:none; font-weight:600;"><span id="tipExampleDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort + '/dropbin/abc' : 'http://localhost:8080/dropbin/abc'}">http://localhost:8080/dropbin/abc</span></a>
+                    Try example: <a id="tipExampleLink" th:href="@{'/d/abc'}" style="color:var(--primary);text-decoration:none; font-weight:600;"><span id="tipExampleDisplay" th:text="${serverLanIp != null ? 'http://' + serverLanIp + ':' + serverPort + '/d/abc' : 'http://localhost:8080/d/abc'}">http://localhost:8080/d/abc</span></a>
                 </p>
             </div>
 
@@ -243,8 +243,8 @@
             if (tipCardHeading) tipCardHeading.textContent = 'Direct Workspace Access';
             if (tipCardDesc) tipCardDesc.textContent = 'Open or share any workspace directly via URL:';
             if (tipOriginDisplay) tipOriginDisplay.textContent = liveOrigin;
-            if (tipExampleDisplay) tipExampleDisplay.textContent = liveOrigin + '/dropbin/abc';
-            if (tipExampleLink) tipExampleLink.href = liveOrigin + '/dropbin/abc';
+            if (tipExampleDisplay) tipExampleDisplay.textContent = liveOrigin + '/d/abc';
+            if (tipExampleLink) tipExampleLink.href = liveOrigin + '/d/abc';
         } else {
             // LAN / Local Mode (Wi-Fi, localhost)
             if (tipCardHeading) tipCardHeading.textContent = 'Direct Workspace Access';
@@ -263,7 +263,7 @@
     function copyFormatUrl() {
         const originDisplay = document.getElementById('tipOriginDisplay');
         const origin = originDisplay ? originDisplay.textContent.trim() : window.location.origin;
-        const urlToCopy = origin + '/dropbin/{name}';
+        const urlToCopy = origin + '/d/{name}';
         navigator.clipboard.writeText(urlToCopy).then(() => {
             const btn = document.getElementById('btnCopyFormat');
             if (btn) {
@@ -279,7 +279,7 @@
         const input = document.getElementById('customUrlInput');
         let val = input.value.trim().replace(/^\/+|\/+$/g, '');
         if (val) {
-            window.location.href = '/dropbin/' + encodeURIComponent(val);
+            window.location.href = '/d/' + encodeURIComponent(val);
         }
     }
 

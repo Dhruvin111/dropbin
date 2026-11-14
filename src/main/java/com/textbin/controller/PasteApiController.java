@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 @RestController
-@RequestMapping({"/api/dropbin", "/api/pastes"})
+@RequestMapping({"/api/d", "/api/dropbin", "/api/pastes"})
 public class PasteApiController {
 
     private final PasteService pasteService;
@@ -220,8 +220,8 @@ public class PasteApiController {
         }
 
         String host = resolveHost(request);
-        String url = host + "/dropbin/" + opt.get().getId();
-        return renderQrResponse(url, "dropbin-" + opt.get().getId() + "-qr.png", size, download);
+        String url = host + "/d/" + opt.get().getId();
+        return renderQrResponse(url, "d-" + opt.get().getId() + "-qr.png", size, download);
     }
 
     /**
@@ -240,8 +240,8 @@ public class PasteApiController {
         }
 
         String host = resolveHost(request);
-        String url = host + "/dropbin/readonly/" + readOnlyKey;
-        return renderQrResponse(url, "dropbin-readonly-" + readOnlyKey + "-qr.png", size, download);
+        String url = host + "/d/readonly/" + readOnlyKey;
+        return renderQrResponse(url, "d-readonly-" + readOnlyKey + "-qr.png", size, download);
     }
 
     private String resolveHost(HttpServletRequest request) {

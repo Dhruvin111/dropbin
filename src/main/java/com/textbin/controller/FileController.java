@@ -37,7 +37,11 @@ public class FileController {
 
     // ─── 1. Upload File (up to 10MB; Image, PDF, Word) ───────────────────────
     @PostMapping(
-            value = {"/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files", "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"},
+            value = {
+                    "/api/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
+                    "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
+                    "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
+            },
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ResponseEntity<?> uploadFile(
@@ -61,6 +65,8 @@ public class FileController {
 
     // ─── 2. List Files for Pad ────────────────────────────────────────────────
     @GetMapping({
+            "/api/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
+            "/api/d/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
@@ -77,6 +83,7 @@ public class FileController {
 
     // ─── 3. Delete File ───────────────────────────────────────────────────────
     @DeleteMapping({
+            "/api/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}",
             "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}",
             "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}"
     })
@@ -97,6 +104,7 @@ public class FileController {
 
     // ─── 3b. Delete All Files for Bin ──────────────────────────────────────────
     @DeleteMapping({
+            "/api/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files",
             "/api/pastes/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files"
     })
@@ -111,6 +119,8 @@ public class FileController {
 
     // ─── 4. View File Inline (Images, PDF) ────────────────────────────────────
     @GetMapping({
+            "/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
+            "/d/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
             "/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
             "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
             "/word/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/view",
@@ -125,6 +135,8 @@ public class FileController {
 
     // ─── 5. Download File Attachment (Word, PDF, Images) ──────────────────────
     @GetMapping({
+            "/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
+            "/d/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
             "/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
             "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
             "/word/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/download",
@@ -139,6 +151,8 @@ public class FileController {
 
     // ─── 6. Friendly File URL with original filename ─────────────────────────
     @GetMapping({
+            "/d/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
+            "/d/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
             "/dropbin/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
             "/dropbin/readonly/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",
             "/word/{pasteId:[a-zA-Z0-9_\\-]{1,64}}/files/{fileId:[a-zA-Z0-9_\\-]{1,64}}/{filename:[a-zA-Z0-9._\\-]{1,255}}",

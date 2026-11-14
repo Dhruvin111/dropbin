@@ -34,9 +34,9 @@ public class PasteController {
         this.syncService = syncService;
     }
 
-    // ─── Landing Page at /dropbin ─────────────────────────────────────────────
+    // ─── Landing Page at / or /d ─────────────────────────────────────────────
 
-    @GetMapping({ "/dropbin", "/dropbin/" })
+    @GetMapping({ "/", "/d", "/d/", "/dropbin", "/dropbin/" })
     public String dropbinLanding(Model model) {
         model.addAttribute("activePastes", pasteService.countActive());
         model.addAttribute("serverLanIp", NetworkUtil.getLocalNetworkIp());
@@ -45,28 +45,23 @@ public class PasteController {
         return "index";
     }
 
-    // ─── Backward compatibility & root redirects -> /dropbin ─────────────────
-
-    @GetMapping({ "/" })
-    public String rootRedirect() {
-        return "redirect:/dropbin";
-    }
+    // ─── Backward compatibility redirects ─────────────────────────────────────
 
     @GetMapping({ "/word", "/word/" })
     public String wordLegacyRedirect() {
-        return "redirect:/dropbin";
+        return "redirect:/";
     }
 
     // ─── Random Pad Redirects ─────────────────────────────────────────────────
 
-    @GetMapping({ "/dropbin/new", "/word/new", "/new" })
+    @GetMapping({ "/d/new", "/dropbin/new", "/word/new", "/new" })
     public String newRandomPad() {
-        return "redirect:/dropbin/" + pasteService.generateUniqueRandomId();
+        return "redirect:/d/" + pasteService.generateUniqueRandomId();
     }
 
     // ─── Form Create ──────────────────────────────────────────────────────────
 
-    @PostMapping({ "/dropbin", "/word", "/" })
+    @PostMapping({ "/d", "/dropbin", "/word", "/" })
     public String createFromForm(
             @RequestParam(required = false) String customUrl,
             @RequestParam(required = false) String content,
@@ -86,12 +81,12 @@ public class PasteController {
             pasteService.getOrCreate(targetId);
         }
 
-        return "redirect:/dropbin/" + targetId;
+        return "redirect:/d/" + targetId;
     }
 
     // ─── Takedown / Delete Bin Form Fallback ──────────────────────────────────
 
-    @PostMapping({ "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown", "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown" })
+    @PostMapping({ "/d/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown", "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown", "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/takedown" })
     public String takedownFromForm(@PathVariable String id) {
         if (pasteService.isReadOnlyKey(id) || id.startsWith("ro_")) {
             throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Cannot delete in read-only mode");
@@ -109,12 +104,12 @@ public class PasteController {
         try {
             pasteService.deletePaste(cleanId);
         } catch (Exception ignored) {}
-        return "redirect:/dropbin?deleted=" + cleanId;
+        return "redirect:/?deleted=" + cleanId;
     }
 
-    // ─── Pad View / Edit: Primary route is /dropbin/{id} ─────────────────────
+    // ─── Pad View / Edit: Primary route is /d/{id} ─────────────────────────────
 
-    @GetMapping("/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}")
+    @GetMapping("/d/{id:[a-zA-Z0-9_\\-]{1,64}}")
     public String viewDropbinPad(
             @PathVariable String id,
             @RequestParam(name = "mode", required = false) String mode,
@@ -123,7 +118,7 @@ public class PasteController {
         // If the ID passed is actually a secret read-only key, keep them permanently in
         // read-only mode!
         if (pasteService.isReadOnlyKey(id)) {
-            return "redirect:/dropbin/readonly/" + id;
+            return "redirect:/d/readonly/" + id;
         }
 
         boolean isReadOnly = "readonly".equalsIgnoreCase(mode) || Boolean.TRUE.equals(readonlyParam);
@@ -138,7 +133,9 @@ public class PasteController {
 
     // ─── Dedicated Secure Read-Only Token Route ──────────────────────────────
 
-    @GetMapping({ "/dropbin/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}",
+    @GetMapping({ "/d/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}",
+            "/d/r/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}",
+            "/dropbin/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}",
             "/word/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}" })
     public String viewDropbinByReadOnlyKey(@PathVariable String readOnlyKey, Model model) {
         Paste paste = pasteService.findByReadOnlyKey(readOnlyKey)
@@ -153,39 +150,39 @@ public class PasteController {
         return "view";
     }
 
-    // ─── Legacy /dropbin/{id}/readonly -> Redirect to secure token route ─────
+    // ─── Legacy /d/{id}/readonly & /dropbin/{id}/readonly -> Redirect to secure token route ─────
 
-    @GetMapping("/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/readonly")
+    @GetMapping({ "/d/{id:[a-zA-Z0-9_\\-]{1,64}}/readonly",
+            "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/readonly",
+            "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/readonly" })
     public String viewDropbinPadReadOnlyRedirect(@PathVariable String id) {
         if (pasteService.isReadOnlyKey(id)) {
-            return "redirect:/dropbin/readonly/" + id;
+            return "redirect:/d/readonly/" + id;
         }
         Paste paste = pasteService.getOrCreate(id);
-        return "redirect:/dropbin/readonly/" + paste.getReadOnlyKey();
+        return "redirect:/d/readonly/" + paste.getReadOnlyKey();
     }
 
-    @GetMapping("/word/{id:[a-zA-Z0-9_\\-]{1,64}}/readonly")
-    public String redirectWordReadOnlyToDropbin(@PathVariable String id) {
-        return viewDropbinPadReadOnlyRedirect(id);
+    // ─── Legacy /dropbin/{id} and /word/{id} Redirect to /d/{id} ──────────────
+
+    @GetMapping({ "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}", "/word/{id:[a-zA-Z0-9_\\-]{1,64}}" })
+    public String redirectLegacyToPad(@PathVariable String id) {
+        return "redirect:/d/" + id;
     }
 
-    // ─── Legacy /word/{id} Redirect to /dropbin/{id} ──────────────────────────
+    // ─── Direct URL without prefix -> Enforce redirect to /d/{id} ────────────
 
-    @GetMapping("/word/{id:[a-zA-Z0-9_\\-]{1,64}}")
-    public String redirectWordToDropbin(@PathVariable String id) {
-        return "redirect:/dropbin/" + id;
-    }
-
-    // ─── Direct URL without prefix -> Enforce redirect to /dropbin/{id} ───────
-
-    @GetMapping("/{id:^(?!api$|raw$|dropbin$|word$|new$|error$|static$|robots\\.txt$|sitemap\\.xml$|favicon\\.ico$|.*\\.(?:css|js|ico|png|jpg|jpeg|svg|map|txt|xml|json)$)[a-zA-Z0-9_\\-]{1,64}$}")
+    @GetMapping("/{id:^(?!api$|raw$|dropbin$|word$|d$|new$|error$|static$|robots\\.txt$|sitemap\\.xml$|favicon\\.ico$|.*\\.(?:css|js|ico|png|jpg|jpeg|svg|map|txt|xml|json)$)[a-zA-Z0-9_\\-]{1,64}$}")
     public String redirectDirectToDropbin(@PathVariable String id) {
-        return "redirect:/dropbin/" + id;
+        return "redirect:/d/" + id;
     }
 
     // ─── Raw text endpoints ───────────────────────────────────────────────────
 
-    @GetMapping(value = { "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
+    @GetMapping(value = { "/d/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
+            "/d/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
+            "/d/r/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
+            "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/raw",
             "/dropbin/readonly/{id:[a-zA-Z0-9_\\-]{1,64}}/raw" }, produces = "text/plain;charset=UTF-8")
     @ResponseBody
     public String rawDropbin(@PathVariable String id) {
@@ -196,26 +193,21 @@ public class PasteController {
         return opt.map(Paste::getContent).orElse("");
     }
 
-    @GetMapping(value = "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/raw", produces = "text/plain;charset=UTF-8")
+    @GetMapping(value = { "/word/{id:[a-zA-Z0-9_\\-]{1,64}}/raw", "/raw/{id:[a-zA-Z0-9_\\-]{1,64}}" }, produces = "text/plain;charset=UTF-8")
     public String legacyWordRawRedirect(@PathVariable String id) {
-        return "redirect:/dropbin/" + id + "/raw";
-    }
-
-    @GetMapping(value = "/raw/{id:[a-zA-Z0-9_\\-]{1,64}}", produces = "text/plain;charset=UTF-8")
-    public String legacyRawRedirect(@PathVariable String id) {
-        return "redirect:/dropbin/" + id + "/raw";
+        return "redirect:/d/" + id + "/raw";
     }
 
     // ─── Direct QR routes forwarding to API ───────────────────────────────────
 
-    @GetMapping(value = "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/qr")
+    @GetMapping(value = { "/d/{id:[a-zA-Z0-9_\\-]{1,64}}/qr", "/dropbin/{id:[a-zA-Z0-9_\\-]{1,64}}/qr" })
     public String directDropbinQr(@PathVariable String id) {
-        return "forward:/api/dropbin/" + id + "/qr";
+        return "forward:/api/d/" + id + "/qr";
     }
 
-    @GetMapping(value = "/dropbin/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}/qr")
+    @GetMapping(value = { "/d/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}/qr", "/dropbin/readonly/{readOnlyKey:[a-zA-Z0-9_\\-]{1,64}}/qr" })
     public String directDropbinReadOnlyQr(@PathVariable String readOnlyKey) {
-        return "forward:/api/dropbin/readonly/" + readOnlyKey + "/qr";
+        return "forward:/api/d/readonly/" + readOnlyKey + "/qr";
     }
 
     // ─── Helper to populate common model attributes ───────────────────────────

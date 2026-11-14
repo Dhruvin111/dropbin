@@ -353,8 +353,8 @@ public class FileStorageService {
 
     public BinFileDto toDto(BinFile file, String routePrefix) {
         String base = (routePrefix != null && !routePrefix.isBlank()) ? routePrefix : file.getPasteId();
-        String downloadUrl = "/dropbin/" + base + "/files/" + file.getId() + "/download";
-        String viewUrl = "/dropbin/" + base + "/files/" + file.getId() + "/view";
+        String downloadUrl = "/d/" + base + "/files/" + file.getId() + "/download";
+        String viewUrl = "/d/" + base + "/files/" + file.getId() + "/view";
         return new BinFileDto(
                 file.getId(),
                 base,

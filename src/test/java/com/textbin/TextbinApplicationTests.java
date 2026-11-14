@@ -67,33 +67,42 @@ class TextbinApplicationTests {
     void testDropbinRouting() throws Exception {
         String testId = "test-route-" + System.currentTimeMillis();
 
-        // 1. Root / redirects to /dropbin
+        // 1. Root / and /d load index
         mockMvc.perform(get("/"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/dropbin"));
+                .andExpect(status().isOk())
+                .andExpect(view().name("index"));
 
-        // 2. Legacy /word redirects to /dropbin
+        mockMvc.perform(get("/d"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("index"));
+
+        // 2. Legacy /word redirects to /
         mockMvc.perform(get("/word"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/dropbin"));
+                .andExpect(redirectedUrl("/"));
 
         // 3. Landing page /dropbin loads index
         mockMvc.perform(get("/dropbin"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("index"));
 
-        // 4. Direct route without /dropbin redirects to /dropbin/{id}
+        // 4. Direct route without /d redirects to /d/{id}
         mockMvc.perform(get("/" + testId))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/dropbin/" + testId));
+                .andExpect(redirectedUrl("/d/" + testId));
 
-        // 5. Legacy /word/{id} redirects to /dropbin/{id}
+        // 5. Legacy /word/{id} redirects to /d/{id}
         mockMvc.perform(get("/word/" + testId))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/dropbin/" + testId));
+                .andExpect(redirectedUrl("/d/" + testId));
 
-        // 6. Pad route /dropbin/{id} loads view
+        // 5b. Legacy /dropbin/{id} redirects to /d/{id}
         mockMvc.perform(get("/dropbin/" + testId))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/d/" + testId));
+
+        // 6. Primary pad route /d/{id} loads view
+        mockMvc.perform(get("/d/" + testId))
                 .andExpect(status().isOk())
                 .andExpect(view().name("view"))
                 .andExpect(model().attributeExists("paste"))
@@ -116,8 +125,8 @@ class TextbinApplicationTests {
                 "client-test-token"
         );
 
-        // Save via /api/dropbin/{id}
-        mockMvc.perform(post("/api/dropbin/" + testId)
+        // Save via /api/d/{id}
+        mockMvc.perform(post("/api/d/" + testId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(saveReq)))
                 .andExpect(status().isOk())
@@ -126,20 +135,20 @@ class TextbinApplicationTests {
                 .andExpect(jsonPath("$.version").value(2));
 
         // Check status endpoint
-        mockMvc.perform(get("/api/dropbin/" + testId + "/status"))
+        mockMvc.perform(get("/api/d/" + testId + "/status"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(testId))
                 .andExpect(jsonPath("$.version").value(2));
 
-        // Check raw endpoint under /dropbin/{id}/raw
-        mockMvc.perform(get("/dropbin/" + testId + "/raw"))
+        // Check raw endpoint under /d/{id}/raw
+        mockMvc.perform(get("/d/" + testId + "/raw"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("Hello, DropBin multi-device!"));
 
-        // Check legacy /raw/{id} redirects to /dropbin/{id}/raw
+        // Check legacy /raw/{id} redirects to /d/{id}/raw
         mockMvc.perform(get("/raw/" + testId))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/dropbin/" + testId + "/raw"));
+                .andExpect(redirectedUrl("/d/" + testId + "/raw"));
 
         // Cleanup
         pasteRepository.deleteById(testId);
@@ -213,7 +222,7 @@ class TextbinApplicationTests {
                 .andExpect(jsonPath("$.length()").value(3));
 
         // 6. View image endpoint
-        mockMvc.perform(get("/dropbin/" + testId + "/files/" + fileId + "/view"))
+        mockMvc.perform(get("/d/" + testId + "/files/" + fileId + "/view"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", "image/png"));
 
@@ -261,10 +270,10 @@ class TextbinApplicationTests {
                 .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("Invalid or corrupted file header")));
 
         // 6. Read-only view template must NOT leak the secret edit ID in raw link
-        mockMvc.perform(get("/dropbin/readonly/" + roKey))
+        mockMvc.perform(get("/d/readonly/" + roKey))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("/dropbin/readonly/" + roKey + "/raw")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/dropbin/" + testId + "/raw"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("/d/readonly/" + roKey + "/raw")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/d/" + testId + "/raw"))));
 
         // Cleanup
         pasteRepository.deleteById(testId);

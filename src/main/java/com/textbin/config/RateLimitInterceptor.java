@@ -34,14 +34,14 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             }
         }
         // 2. Text Content Saves / Edits: Max 120 saves / minute per IP (allows debounce burst up to 2/sec)
-        else if ("POST".equalsIgnoreCase(method) && (path.startsWith("/api/dropbin/") || path.startsWith("/api/pastes/"))) {
+        else if ("POST".equalsIgnoreCase(method) && (path.startsWith("/api/d/") || path.startsWith("/api/dropbin/") || path.startsWith("/api/pastes/"))) {
             if (!rateLimitingService.allowRequest(clientIp, "save", 120)) {
                 sendRateLimitResponse(response, "Text save rate limit exceeded. Please slow down.");
                 return false;
             }
         }
         // 3. New workspace creation: Max 30 / minute per IP
-        else if (path.equals("/dropbin/new")) {
+        else if (path.equals("/d/new") || path.equals("/dropbin/new")) {
             if (!rateLimitingService.allowRequest(clientIp, "create", 30)) {
                 sendRateLimitResponse(response, "Too many workspace generation requests. Please try again shortly.");
                 return false;

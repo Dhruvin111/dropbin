@@ -25,13 +25,13 @@
 <!-- Header -->
 <header class="site-header pad-header">
     <div class="header-left">
-        <a href="/dropbin" class="logo">
+        <a href="/" class="logo">
             <span>📦 DropBin</span>
             <span th:if="${isReadOnly}" class="logo-badge" style="background:#d97706; color:#ffffff;">Read-Only</span>
             <span th:unless="${isReadOnly}" class="logo-badge">Live</span>
         </a>
         <div class="pad-route-badge" title="DropBin Identifier">
-            <span class="prefix">/dropbin/</span><span id="displayPadId" th:text="${activeId != null ? activeId : paste.id}">pad</span>
+            <span class="prefix">/d/</span><span id="displayPadId" th:text="${activeId != null ? activeId : paste.id}">pad</span>
             <span th:if="${isReadOnly}" style="font-size:0.75rem; color:#d97706; font-weight:700; margin-left:0.25rem;">[Read-Only]</span>
         </div>
     </div>
@@ -68,7 +68,7 @@
         </button>
 
         <!-- New Pad Button -->
-        <a href="/dropbin/new" class="btn btn-secondary">
+        <a href="/d/new" class="btn btn-secondary">
             <svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>New Bin</span>
         </a>
@@ -114,7 +114,7 @@
         <div class="toolbar-left">
             <div class="workspace-badge" title="Active Workspace">
                 <svg class="workspace-badge-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                <span class="workspace-badge-path">dropbin</span>
+                <span class="workspace-badge-path">d</span>
                 <span class="workspace-badge-sep">/</span>
                 <span class="workspace-badge-name" id="workspaceBadgeName" th:text="${activeId != null ? activeId : paste.id}">test1</span>
                 <button type="button" class="workspace-copy-btn" id="btnCopyWorkspaceName" title="Copy workspace name">
@@ -132,7 +132,7 @@
                 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                 <span>Copy</span>
             </button>
-            <a th:href="@{'/dropbin/' + ${activeId} + '/raw'}" target="_blank" class="btn btn-secondary" title="View raw plain text">
+            <a th:href="@{'/d/' + ${activeId} + '/raw'}" target="_blank" class="btn btn-secondary" title="View raw plain text">
                 <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                 <span>Raw</span>
             </a>
@@ -368,7 +368,7 @@
                             <svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                             <span>Copy URL</span>
                         </button>
-                        <a href="#" class="btn btn-primary btn-sm" id="btnDownloadQr" download="dropbin-qr.png">
+                        <a href="#" class="btn btn-primary btn-sm" id="btnDownloadQr" download="qr.png">
                             <svg class="btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             <span>Download QR</span>
                         </a>
@@ -438,7 +438,7 @@
 </div>
 
 <!-- Hidden fallback form for takedown -->
-<form th:if="${!isReadOnly}" id="takedownFallbackForm" method="POST" th:action="@{'/dropbin/' + ${paste.id} + '/takedown'}" style="display:none;"></form>
+<form th:if="${!isReadOnly}" id="takedownFallbackForm" method="POST" th:action="@{'/d/' + ${paste.id} + '/takedown'}" style="display:none;"></form>
 
 <!-- Takedown Peer Notice Modal (Displayed to any connected collaborator when taken down) -->
 <div class="share-modal" id="takedownNoticeModal">
@@ -604,9 +604,9 @@
         ? `http://${serverLanIp}${hostPort}`
         : window.location.origin;
 
-    const lanDropbinFull = `${baseOrigin}/dropbin/${pasteId}`;
+    const lanDropbinFull = `${baseOrigin}/d/${pasteId}`;
     const readOnlyToken = readOnlyKey || pasteId;
-    const lanReadOnlyFull = `${baseOrigin}/dropbin/readonly/${readOnlyToken}`;
+    const lanReadOnlyFull = `${baseOrigin}/d/readonly/${readOnlyToken}`;
 
     // Dynamically adjust text labels if client is in local LAN mode vs cloud Live mode
     const networkLinksTitle = document.getElementById('networkLinksTitle');
@@ -695,7 +695,7 @@
         if (qrModeBtnReadOnly) qrModeBtnReadOnly.classList.toggle('active', mode === 'readonly');
 
         if (mode === 'edit') {
-            const editQrUrl = `/api/dropbin/${encodeURIComponent(pasteId)}/qr`;
+            const editQrUrl = `/api/d/${encodeURIComponent(pasteId)}/qr`;
             if (qrImageElement) qrImageElement.src = editQrUrl;
             if (qrBadgeLabel) {
                 qrBadgeLabel.className = 'qr-badge badge-edit';
@@ -704,14 +704,14 @@
             if (qrHintText) qrHintText.textContent = 'Scan with a phone camera to open workspace';
             if (btnDownloadQr) {
                 btnDownloadQr.href = `${editQrUrl}?download=true`;
-                btnDownloadQr.download = `dropbin-${pasteId}-qr.png`;
+                btnDownloadQr.download = `d-${pasteId}-qr.png`;
             }
             if (btnCopyQrUrl) {
                 btnCopyQrUrl.onclick = () => copyToClipboard(lanDropbinFull, btnCopyQrUrl);
             }
         } else {
             const token = readOnlyToken;
-            const roQrUrl = `/api/dropbin/readonly/${encodeURIComponent(token)}/qr`;
+            const roQrUrl = `/api/d/readonly/${encodeURIComponent(token)}/qr`;
             if (qrImageElement) qrImageElement.src = roQrUrl;
             if (qrBadgeLabel) {
                 qrBadgeLabel.className = 'qr-badge badge-readonly';
@@ -720,7 +720,7 @@
             if (qrHintText) qrHintText.textContent = 'Scan with a phone camera for view-only access';
             if (btnDownloadQr) {
                 btnDownloadQr.href = `${roQrUrl}?download=true`;
-                btnDownloadQr.download = `dropbin-readonly-${token}-qr.png`;
+                btnDownloadQr.download = `d-readonly-${token}-qr.png`;
             }
             if (btnCopyQrUrl) {
                 btnCopyQrUrl.onclick = () => copyToClipboard(lanReadOnlyFull, btnCopyQrUrl);
@@ -854,14 +854,14 @@
             btnConfirmTakedown.innerHTML = '<svg class="btn-icon btn-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> <span>Taking down...</span>';
 
             const executeRedirect = () => {
-                window.location.href = `/dropbin?deleted=${encodeURIComponent(pasteId)}`;
+                window.location.href = `/?deleted=${encodeURIComponent(pasteId)}`;
             };
 
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-                const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/takedown`, {
+                const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}/takedown`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     signal: controller.signal
@@ -910,7 +910,7 @@
             if (countdownEl) countdownEl.textContent = seconds;
             if (seconds <= 0) {
                 clearInterval(interval);
-                window.location.href = '/dropbin';
+                window.location.href = '/';
             }
         }, 1000);
     }
@@ -1030,7 +1030,7 @@
                 clientToken: clientToken
             };
 
-            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}`, {
+            const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -1069,7 +1069,7 @@
                 title: titleInput ? titleInput.value : pasteId,
                 clientToken: clientToken
             });
-            navigator.sendBeacon(`/api/dropbin/${encodeURIComponent(pasteId)}`, new Blob([payload], { type: 'application/json' }));
+            navigator.sendBeacon(`/api/d/${encodeURIComponent(pasteId)}`, new Blob([payload], { type: 'application/json' }));
         }
     });
 
@@ -1186,7 +1186,7 @@
             if (uploadProgressText) uploadProgressText.textContent = `Uploading ${file.name} (0%)...`;
 
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', `/api/dropbin/${encodeURIComponent(pasteId)}/files`, true);
+            xhr.open('POST', `/api/d/${encodeURIComponent(pasteId)}/files`, true);
 
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
@@ -1270,8 +1270,8 @@
         }
 
         const currentPadPrefix = isReadOnly ? ('readonly/' + (readOnlyKey || pasteId)) : pasteId;
-        const viewUrl = `/dropbin/${encodeURIComponent(currentPadPrefix)}/files/${encodeURIComponent(file.id)}/view`;
-        const downloadUrl = `/dropbin/${encodeURIComponent(currentPadPrefix)}/files/${encodeURIComponent(file.id)}/download`;
+        const viewUrl = `/d/${encodeURIComponent(currentPadPrefix)}/files/${encodeURIComponent(file.id)}/view`;
+        const downloadUrl = `/d/${encodeURIComponent(currentPadPrefix)}/files/${encodeURIComponent(file.id)}/download`;
 
         const card = document.createElement('div');
         card.className = 'file-card';
@@ -1336,7 +1336,7 @@
         }
 
         try {
-            const resp = await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/files/${encodeURIComponent(fileId)}`, {
+            const resp = await fetch(`/api/d/${encodeURIComponent(pasteId)}/files/${encodeURIComponent(fileId)}`, {
                 method: 'DELETE'
             });
 
@@ -1444,8 +1444,8 @@
     // 1. Server-Sent Events (SSE) Stream
     function initSse() {
         const streamUrl = (isReadOnly && readOnlyKey)
-            ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}/stream`
-            : `/api/dropbin/${encodeURIComponent(pasteId)}/stream`;
+            ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}/stream`
+            : `/api/d/${encodeURIComponent(pasteId)}/stream`;
         const eventSource = new EventSource(streamUrl);
 
         eventSource.addEventListener('paste_update', (e) => {
@@ -1510,8 +1510,8 @@
         if (isSaving || isTakedownInProgress) return;
         try {
             const statusUrl = (isReadOnly && readOnlyKey)
-                ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}/status`
-                : `/api/dropbin/${encodeURIComponent(pasteId)}/status`;
+                ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}/status`
+                : `/api/d/${encodeURIComponent(pasteId)}/status`;
             const resp = await fetch(statusUrl);
             if (resp.status === 404) {
                 triggerPeerTakedownNotice();
@@ -1521,8 +1521,8 @@
                 const status = await resp.json();
                 if (status.version && status.version > currentVersion) {
                     const fullUrl = (isReadOnly && readOnlyKey)
-                        ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}`
-                        : `/api/dropbin/${encodeURIComponent(pasteId)}`;
+                        ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}`
+                        : `/api/d/${encodeURIComponent(pasteId)}`;
                     const fullResp = await fetch(fullUrl);
                     if (fullResp.ok) {
                         const fullData = await fullResp.json();
@@ -1537,8 +1537,8 @@
         if (!filesGrid || isTakedownInProgress) return;
         try {
             const filesUrl = (isReadOnly && readOnlyKey)
-                ? `/api/dropbin/readonly/${encodeURIComponent(readOnlyKey)}/files`
-                : `/api/dropbin/${encodeURIComponent(pasteId)}/files`;
+                ? `/api/d/readonly/${encodeURIComponent(readOnlyKey)}/files`
+                : `/api/d/${encodeURIComponent(pasteId)}/files`;
             const resp = await fetch(filesUrl);
             if (resp.ok) {
                 const fileList = await resp.json();
@@ -1596,7 +1596,7 @@
 
                 // Clear all attached files on server
                 try {
-                    await fetch(`/api/dropbin/${encodeURIComponent(pasteId)}/files`, {
+                    await fetch(`/api/d/${encodeURIComponent(pasteId)}/files`, {
                         method: 'DELETE'
                     });
                 } catch (err) {

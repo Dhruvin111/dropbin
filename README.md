@@ -23,8 +23,8 @@
 - 🛡️ **Rate Limiting & DoS Protection**: Built-in sliding-window IP rate limiting (120 saves/min, 20 uploads/min, 30 new bins/min) with proxy IP resolution (`X-Forwarded-For`).
 - 🔒 **Zero-Trust File Security**: Content-Security-Policy sandboxing on SVG previews, path traversal protection, and atomic concurrency locking on uploads.
 - 🌐 **Zero-Config LAN Sharing**: Automatically detects host LAN IP address and generates copyable URLs for instant cross-device sharing across phones, laptops, and workstations on the same Wi-Fi.
-- 🔒 **Secure Read-Only Share Links**: Share unguessable, tokenized view-only links (`/dropbin/readonly/ro_<token>`) that lock the editor and disable uploads for viewers while continuing to stream live updates in real time. Deleting `readonly/` or attempting to edit from a read-only token is automatically blocked and forbidden.
-- 📱 **Integrated Dual QR Codes**: Instant camera scanning for both Collaborative Edit and Read-Only links. Features built-in preview, download to PNG, and direct image endpoints (`/dropbin/{id}/qr` & `/dropbin/readonly/{token}/qr`).
+- 🔒 **Secure Read-Only Share Links**: Share unguessable, tokenized view-only links (`/d/readonly/ro_<token>`) that lock the editor and disable uploads for viewers while continuing to stream live updates in real time. Deleting `readonly/` or attempting to edit from a read-only token is automatically blocked and forbidden.
+- 📱 **Integrated Dual QR Codes**: Instant camera scanning for both Collaborative Edit and Read-Only links. Features built-in preview, download to PNG, and direct image endpoints (`/d/{id}/qr` & `/d/readonly/{token}/qr`).
 
 ---
 
@@ -110,12 +110,13 @@ Once started, open your browser at:
 
 | Route | Method | Description |
 |---|---|---|
-| `/dropbin` | `GET` | Landing page to create or open a named pad |
-| `/dropbin/new` | `GET` | Generates a random alphanumeric pad ID and redirects |
-| `/dropbin/{id}` | `GET` | Main live collaborative editor view for pad `{id}` |
-| `/dropbin/{id}/readonly` | `GET` | View-only link: locks editor & uploads while streaming live updates |
-| `/dropbin/{id}/raw` | `GET` | Plain text raw view of bin content |
-| `/{id}` | `GET` | Convenient shortcut redirecting to `/dropbin/{id}` |
+| `/` or `/d` | `GET` | Landing page to create or open a named pad |
+| `/d/new` | `GET` | Generates a random alphanumeric pad ID and redirects |
+| `/d/{id}` | `GET` | Main live collaborative editor view for pad `{id}` |
+| `/d/readonly/{token}` | `GET` | View-only link: locks editor & uploads while streaming live updates |
+| `/d/{id}/raw` | `GET` | Plain text raw view of bin content |
+| `/{id}` | `GET` | Convenient shortcut redirecting to `/d/{id}` |
+| `/dropbin/{id}` | `GET` | Legacy route redirecting to `/d/{id}` |
 
 ---
 
@@ -124,7 +125,7 @@ Once started, open your browser at:
 ### Text & Pad Endpoints
 
 #### Save / Update Pad Content
-`POST /api/dropbin/{id}`
+`POST /api/d/{id}` *(legacy `/api/dropbin/{id}` also supported)*
 - **Payload**:
   ```json
   {
@@ -137,7 +138,7 @@ Once started, open your browser at:
 - **Response**: `200 OK` with updated `PasteResponse` object (includes new version and timestamp).
 
 #### Real-Time SSE Stream
-`GET /api/dropbin/{id}/stream`
+`GET /api/d/{id}/stream`
 - **Response**: `text/event-stream`
 - Emits events:
   - `init`: Fired upon successful initial connection.
@@ -148,7 +149,7 @@ Once started, open your browser at:
   - `bin_deleted`: Broadcasts when the entire bin is taken down.
 
 #### Get Pad Status (Lightweight Polling)
-`GET /api/dropbin/{id}/status`
+`GET /api/d/{id}/status`
 - **Response**:
   ```json
   {
@@ -160,7 +161,7 @@ Once started, open your browser at:
   ```
 
 #### Get Full Pad Details
-`GET /api/dropbin/{id}`
+`GET /api/d/{id}`
 - **Response**: `200 OK` with complete pad JSON.
 
 ---
@@ -169,12 +170,12 @@ Once started, open your browser at:
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/dropbin/{pasteId}/files` | `POST` | Upload file (multipart field: `file`, max 5 files per bin, max 10MB each) |
-| `/api/dropbin/{pasteId}/files` | `GET` | List all active attached files for the pad |
-| `/api/dropbin/{pasteId}/files/{fileId}` | `DELETE` | Delete a single attached file |
-| `/api/dropbin/{pasteId}/files` | `DELETE` | Purge all attached files for the pad |
-| `/dropbin/{pasteId}/files/{fileId}/view` | `GET` | Inline preview (Images / PDFs with CSP sandbox protection) |
-| `/dropbin/{pasteId}/files/{fileId}/download` | `GET` | Download attachment with original filename header |
+| `/api/d/{pasteId}/files` | `POST` | Upload file (multipart field: `file`, max 5 files per bin, max 10MB each) |
+| `/api/d/{pasteId}/files` | `GET` | List all active attached files for the pad |
+| `/api/d/{pasteId}/files/{fileId}` | `DELETE` | Delete a single attached file |
+| `/api/d/{pasteId}/files` | `DELETE` | Purge all attached files for the pad |
+| `/d/{pasteId}/files/{fileId}/view` | `GET` | Inline preview (Images / PDFs with CSP sandbox protection) |
+| `/d/{pasteId}/files/{fileId}/download` | `GET` | Download attachment with original filename header |
 
 ---
 
@@ -216,8 +217,8 @@ DropBin includes comprehensive, production-grade defenses across memory, storage
 - **Reverse-Proxy Aware**: Extracts real client IPs from `X-Forwarded-For` and `X-Real-IP`, preventing proxy IP collisions on cloud platforms (Railway, Cloudflare, Nginx).
 - **Enforced Thresholds**:
   - `POST .../files` (Uploads): **20 uploads / minute** per IP.
-  - `POST /api/dropbin/{id}` (Text sync): **120 saves / minute** per IP (accommodating debounced typing bursts while preventing API flooding).
-  - `/dropbin/new` (Workspace generation): **30 requests / minute** per IP.
+  - `POST /api/d/{id}` (Text sync): **120 saves / minute** per IP (accommodating debounced typing bursts while preventing API flooding).
+  - `/d/new` (Workspace generation): **30 requests / minute** per IP.
   - Returns `HTTP 429 Too Many Requests` with `Retry-After: 60` on violation.
 - **Memory Safety**: Scheduled worker (`@Scheduled(fixedRate = 60_000)`) purges stale IP buckets to ensure bounded heap memory.
 

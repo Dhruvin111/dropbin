@@ -17,7 +17,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns("/api/**", "/dropbin/new");
+                .addPathPatterns("/api/**", "/d/new", "/dropbin/new");
     }
 
     @Override
