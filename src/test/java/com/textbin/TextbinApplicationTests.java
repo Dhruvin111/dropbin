@@ -222,7 +222,7 @@ class TextbinApplicationTests {
                 .andExpect(status().isNoContent());
 
         // Cleanup
-        binFileRepository.deleteByPasteId(testId);
+        fileStorageService.deleteAllFilesForPaste(testId);
         pasteRepository.deleteById(testId);
     }
 
@@ -268,6 +268,21 @@ class TextbinApplicationTests {
 
         // Cleanup
         pasteRepository.deleteById(testId);
+    }
+
+    @Test
+    void testActuatorHealthAndSecurityHeaders() throws Exception {
+        // Actuator health check endpoint returns 200 OK
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+
+        // Global security response headers
+        mockMvc.perform(get("/dropbin"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"))
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"));
     }
 
     private static byte[] createValidDocxBytes() {

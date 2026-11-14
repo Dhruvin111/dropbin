@@ -5,22 +5,18 @@ import com.textbin.model.BinFile;
 import com.textbin.repository.BinFileRepository;
 import com.textbin.repository.PasteRepository;
 import com.textbin.util.FileValidationUtils;
-import jakarta.annotation.PostConstruct;
+import com.textbin.storage.StorageService;
+import org.springframework.core.io.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.util.FileSystemUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,27 +41,16 @@ public class FileStorageService {
     private final PasteRepository pasteRepo;
     private final PasteService pasteService;
     private final PasteSyncService syncService;
+    private final StorageService storageService;
 
-    @Value("${app.upload.dir:./uploads}")
-    private String uploadBaseDir;
-
-    private Path rootStoragePath;
-
-    public FileStorageService(BinFileRepository fileRepo, PasteRepository pasteRepo, PasteService pasteService, PasteSyncService syncService) {
+    public FileStorageService(BinFileRepository fileRepo, PasteRepository pasteRepo,
+                              PasteService pasteService, PasteSyncService syncService,
+                              StorageService storageService) {
         this.fileRepo = fileRepo;
         this.pasteRepo = pasteRepo;
         this.pasteService = pasteService;
         this.syncService = syncService;
-    }
-
-    @PostConstruct
-    public void init() {
-        this.rootStoragePath = Paths.get(uploadBaseDir).toAbsolutePath().normalize();
-        try {
-            Files.createDirectories(this.rootStoragePath);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not initialize upload directory: " + this.rootStoragePath, e);
-        }
+        this.storageService = storageService;
     }
 
     @Transactional
@@ -93,14 +78,11 @@ public class FileStorageService {
             throw new IllegalArgumentException("File content does not match the expected " + category + " file format. Invalid or corrupted file header.");
         }
 
-        ensureDiskSpace(pasteId, file.getSize());
-
         // ---- 2. Ensure paste exists, then lock it for the duration of this transaction ----
         pasteService.getOrCreate(pasteId);
 
         // The pessimistic row lock is held until this transaction commits, which serialises
         // concurrent uploads to the same paste and makes the file-count check below reliable.
-        // (A JVM-level synchronized block would release BEFORE commit, so it can't do this.)
         pasteRepo.findByIdForUpdate(pasteId).orElseGet(() -> pasteService.getOrCreate(pasteId));
 
         long currentCount = fileRepo.countByPasteId(pasteId);
@@ -108,27 +90,17 @@ public class FileStorageService {
             throw new IllegalStateException("Maximum limit of " + MAX_FILES_PER_BIN + " files reached for this workspace. Please delete an existing file before uploading a new one.");
         }
 
-        // ---- 3. Write to disk: ./uploads/{pasteId}/{fileId}/{filename} ----
+        // ---- 3. Delegate physical file persistence to StorageService ----
         String fileId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 
-        Path targetDir = this.rootStoragePath.resolve(pasteId).resolve(fileId).normalize();
-        if (!targetDir.startsWith(this.rootStoragePath)) {
-            throw new SecurityException("Invalid paste directory resolution.");
-        }
-
-        Path targetFilePath = targetDir.resolve(originalFilename).normalize();
-        // Strict safety check: must be a direct child of targetDir
-        if (targetFilePath.getParent() == null || !targetFilePath.getParent().equals(targetDir)) {
-            throw new SecurityException("Invalid file path resolution.");
-        }
-
-        // If the DB transaction rolls back for any reason, don't leave an orphan file on disk.
-        runAfterRollback(() -> deletePhysicalFileAndEmptyParents(targetFilePath));
-
-        Files.createDirectories(targetDir);
+        String storagePath;
         try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, targetFilePath); // fails if it already exists (it never should)
+            storagePath = storageService.store(pasteId, fileId, originalFilename, inputStream, file.getSize(), contentType);
         }
+
+        // If the DB transaction rolls back for any reason, don't leave an orphan file in storage
+        final String savedPath = storagePath;
+        runAfterRollback(() -> storageService.delete(savedPath));
 
         BinFile binFile = new BinFile(
                 fileId,
@@ -136,7 +108,7 @@ public class FileStorageService {
                 originalFilename,
                 contentType,
                 file.getSize(),
-                targetFilePath.toString(),
+                storagePath,
                 category,
                 Instant.now()
         );
@@ -185,24 +157,27 @@ public class FileStorageService {
             return false;
         }
 
-        Path storagePath = Paths.get(bf.getStoragePath());
-
+        String storagePath = bf.getStoragePath();
         fileRepo.delete(bf);
 
         // Reset paste 5-min timer
         pasteService.touch(pasteId);
 
-        // Remove from disk and notify only once the DB delete has committed
-        // (worst case on failure is an orphan file, never a DB row pointing at a missing file).
+        // Remove from storage and notify only once the DB delete has committed
         Map<String, String> payload = new HashMap<>();
         payload.put("fileId", fileId);
         payload.put("pasteId", pasteId);
         runAfterCommit(() -> {
-            deletePhysicalFileAndEmptyParents(storagePath);
+            storageService.delete(storagePath);
             syncService.broadcastEvent(pasteId, "file_deleted", payload);
         });
 
         return true;
+    }
+
+    public Resource loadFileAsResource(BinFile bf) throws IOException {
+        if (bf == null) return null;
+        return storageService.loadAsResource(bf.getStoragePath());
     }
 
     /**
@@ -215,17 +190,17 @@ public class FileStorageService {
 
         for (BinFile bf : expiredFiles) {
             expiredPasteIds.add(bf.getPasteId());
-            deletePhysicalFileAndEmptyParents(Paths.get(bf.getStoragePath()));
+            storageService.delete(bf.getStoragePath());
         }
 
         // Clean up entire folder for expired pastes if any leftovers remain
         for (String pasteId : expiredPasteIds) {
-            deletePasteDirectory(pasteId);
+            storageService.deleteFolder(pasteId);
         }
 
         if (!expiredFiles.isEmpty()) {
             fileRepo.deleteFilesForExpiredPastes(now);
-            log.info("Cleanup: deleted {} file(s) and folders from disk for expired pastes", expiredFiles.size());
+            log.info("Cleanup: deleted {} file(s) and folders from storage for expired pastes", expiredFiles.size());
         }
     }
 
@@ -239,12 +214,12 @@ public class FileStorageService {
             List<BinFile> files = fileRepo.findByPasteIdOrderByUploadedAtDesc(pasteId);
             for (BinFile bf : files) {
                 try {
-                    deletePhysicalFileAndEmptyParents(Paths.get(bf.getStoragePath()));
+                    storageService.delete(bf.getStoragePath());
                 } catch (Exception e) {
-                    log.warn("Could not delete physical file {}: {}", bf.getStoragePath(), e.getMessage());
+                    log.warn("Could not delete file {}: {}", bf.getStoragePath(), e.getMessage());
                 }
             }
-            deletePasteDirectory(pasteId);
+            storageService.deleteFolder(pasteId);
         } catch (Exception ex) {
             log.warn("Error during file cleanup for paste {}: {}", pasteId, ex.getMessage());
         }
@@ -315,69 +290,6 @@ public class FileStorageService {
             }
         }
         return name;
-    }
-
-    private void ensureDiskSpace(String pasteId, long incomingBytes) {
-        try {
-            long usableSpace = Files.getFileStore(this.rootStoragePath).getUsableSpace();
-            if (usableSpace < MIN_FREE_DISK_BYTES + incomingBytes) {
-                log.error("Rejecting upload for paste {}: usable disk space too low ({} MB)",
-                        pasteId, usableSpace / (1024 * 1024));
-                throw new IllegalStateException("Server disk storage is almost full. Uploads are temporarily paused.");
-            }
-        } catch (IOException e) {
-            log.warn("Could not check disk usable space: {}", e.getMessage());
-        }
-    }
-
-    private void deletePasteDirectory(String pasteId) {
-        try {
-            Path pasteDir = this.rootStoragePath.resolve(pasteId).normalize();
-            if (pasteDir.startsWith(this.rootStoragePath) && !pasteDir.equals(this.rootStoragePath) && Files.exists(pasteDir)) {
-                FileSystemUtils.deleteRecursively(pasteDir);
-            }
-        } catch (Exception ex) {
-            log.warn("Failed deleting paste directory for {}: {}", pasteId, ex.getMessage());
-        }
-    }
-
-    private void deletePhysicalFileAndEmptyParents(Path filePath) {
-        try {
-            // Never delete anything outside the upload root, even if a DB row is tampered with
-            Path normalized = filePath.toAbsolutePath().normalize();
-            if (!normalized.startsWith(this.rootStoragePath) || normalized.equals(this.rootStoragePath)) {
-                log.warn("Refusing to delete path outside upload root: {}", filePath);
-                return;
-            }
-
-            // 1. Delete physical file
-            Files.deleteIfExists(normalized);
-
-            // 2. Delete file sub-directory (./uploads/{pasteId}/{fileId}) if empty
-            Path fileDir = normalized.getParent();
-            if (fileDir != null && !fileDir.equals(this.rootStoragePath) && Files.exists(fileDir)) {
-                try {
-                    Files.deleteIfExists(fileDir);
-                } catch (Exception ignored) {
-                    // directory not empty or already gone
-                }
-            }
-
-            // 3. Delete paste directory (./uploads/{pasteId}) if now empty
-            if (fileDir != null) {
-                Path pasteDir = fileDir.getParent();
-                if (pasteDir != null && pasteDir.startsWith(this.rootStoragePath)
-                        && !pasteDir.equals(this.rootStoragePath) && Files.exists(pasteDir)) {
-                    try {
-                        Files.deleteIfExists(pasteDir);
-                    } catch (Exception ignored) {
-                        // directory not empty or already gone
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to delete physical file {}: {}", filePath, e.getMessage());
-        }
     }
 
     private static void runAfterCommit(Runnable action) {

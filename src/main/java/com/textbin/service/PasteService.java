@@ -99,7 +99,8 @@ public class PasteService {
         String cleanId = sanitizeId(rawId);
         Instant now = Instant.now();
 
-        Paste paste = repo.findById(cleanId).orElseGet(() -> {
+        // Acquire pessimistic write lock to serialize concurrent saves and prevent lost updates
+        Paste paste = repo.findByIdForUpdate(cleanId).orElseGet(() -> {
             Paste p = new Paste();
             p.setId(cleanId);
             p.setCreatedAt(now);

@@ -1,4 +1,5 @@
 {
     "terminal.integrated.enablePersistentSessions": false,
-    "terminal.integrated.persistentSessionReviveProcess": "never"
+    "terminal.integrated.persistentSessionReviveProcess": "never",
+    "java.configuration.updateBuildConfiguration": "interactive"
 }

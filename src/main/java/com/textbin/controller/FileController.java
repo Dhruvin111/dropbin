@@ -168,10 +168,9 @@ public class FileController {
         }
 
         try {
-            Path path = Paths.get(bf.getStoragePath());
-            Resource resource = new UrlResource(path.toUri());
+            Resource resource = fileStorageService.loadFileAsResource(bf);
 
-            if (!resource.exists() || !resource.isReadable()) {
+            if (resource == null || !resource.exists()) {
                 return ResponseEntity.notFound().build();
             }
 
@@ -202,7 +201,7 @@ public class FileController {
 
             return responseBuilder.body(resource);
 
-        } catch (MalformedURLException e) {
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
